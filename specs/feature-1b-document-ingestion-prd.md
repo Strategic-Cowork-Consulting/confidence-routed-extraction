@@ -30,10 +30,11 @@ Current alternative is manual Claude chat: it can produce a draft but is slow, n
 2. `[MUST]` API accepts a field schema — a list of named fields with optional descriptions — that defines what to extract
 3. `[MUST]` API accepts an analyst persona prompt that configures extraction behavior (e.g., "You are a paralegal specializing in immigration documents")
 4. `[MUST]` Response returns a JSON draft where every field in the schema is present, with either an extracted value or an explicit `null` + `not_found: true` flag — no fields are silently omitted
-5. `[MUST]` Response includes a unique `document_id` for use in subsequent review and approval steps
+5. `[MUST]` Response includes a unique `document_id` that is a **real persistence key** referencing the stored draft — usable to fetch the original draft at review/approval time
 6. `[MUST]` Each extracted field records which source document it was drawn from (by filename or index)
-7. `[SHOULD]` Extraction completes within 30 seconds for a portfolio of up to 5 documents
-8. `[COULD]` Field extraction includes a brief rationale string explaining why that value was chosen (useful for reviewer context)
+7. `[MUST]` Each field is represented as a structured object — `{value, source_document, ...}` — NOT a bare string, so that future multi-document reconciliation (Open Question #2) can add a `candidates` array without a schema migration
+8. `[SHOULD]` Extraction completes within 30 seconds for a portfolio of up to 5 documents
+9. `[COULD]` Field extraction includes a brief rationale string explaining why that value was chosen (useful for reviewer context)
 
 ---
 
@@ -63,7 +64,7 @@ Current alternative is manual Claude chat: it can produce a draft but is slow, n
 
 1. `[MUST]` Response JSON validates against the `DocumentDraft` Pydantic schema
 2. `[MUST]` Analyst persona prompt is optional — if omitted, a neutral default is used and documented
-3. `[MUST]` No submitted documents are persisted to disk or database — extraction is stateless within the request lifecycle
+3. `[MUST]` Source documents are NOT persisted — discarded after extraction (privacy; not needed downstream). The generated **draft IS persisted**, keyed by `document_id`, to serve as the immutable diff baseline for downstream review (Feature 1c / Epic 2). This is a proof-of-concept; endpoint-level statelessness is explicitly NOT a goal.
 
 ---
 
@@ -110,7 +111,7 @@ Use Claude API tool_use / structured output (not free-text parsing) to guarantee
 ## Non-Functional Requirements
 
 - **Performance:** End-to-end response under 30 seconds for portfolios of up to 5 documents
-- **Security:** Documents are not written to disk; processed in memory only. `ANTHROPIC_API_KEY` sourced from environment, never logged
+- **Security:** Source documents are processed in memory only and never written to disk or persisted. The generated draft is persisted (it contains no raw source files). `ANTHROPIC_API_KEY` sourced from environment, never logged
 - **Reliability:** Claude API failures return structured errors — the server does not crash or return 500 on API errors
 - **Scalability:** Out of scope for this version — synchronous only
 
@@ -144,7 +145,7 @@ Use Claude API tool_use / structured output (not free-text parsing) to guarantee
 - `ANTHROPIC_API_KEY` configured in `.env`
 - `pyproject.toml` with `anthropic`, `fastapi`, `pydantic>=2`, `python-multipart` dependencies
 - `DocumentDraft` Pydantic schema defined before endpoint implementation
-- Alembic and database setup are **not** required for this feature — it is stateless
+- **Minimal persistence layer required** — a `drafts` table (SQLite is sufficient for the POC) keyed by `document_id`, storing the draft JSON, document-type tags, and created-at timestamp. Source documents are not stored.
 
 ---
 
@@ -152,7 +153,7 @@ Use Claude API tool_use / structured output (not free-text parsing) to guarantee
 
 - **Claude API only** — no other AI backends, no fallback models
 - **Domain-agnostic by construction** — field schema is always request-defined; no field names are hardcoded anywhere in extraction logic
-- **Stateless** — no document storage within this feature; `document_id` is generated per-request (UUID) but nothing is persisted
+- **Draft persistence (POC)** — the generated draft IS persisted (keyed by `document_id`) so it can serve as the immutable diff baseline at approval time. Source documents are NOT persisted. Endpoint statelessness is not a goal for this proof-of-concept.
 - **Structured output only** — use Claude tool_use or structured output, not free-text parsing; downstream components depend on machine-readable JSON
 - **`core/` stays pure** — extraction logic lives in `src/extraction/core/pipeline.py` with no FastAPI imports; router calls core, not the reverse
 - **Document type detection uses Claude API inference** — no hardcoded classification rules or lookup tables
@@ -165,7 +166,7 @@ Use Claude API tool_use / structured output (not free-text parsing) to guarantee
 **Happy path:**
 1. `POST /api/v1/extraction/draft` with a scientific paper PDF and schema `[{name: "title"}, {name: "authors"}, {name: "abstract"}, {name: "publication_date"}]`
 2. Response is HTTP 200
-3. All 4 fields present in JSON; `document_type` is `"scientific_paper"`; `document_id` is a UUID; each field has `source_document` set
+3. All 4 fields present in JSON as field-objects; `document_type` is `"scientific_paper"`; `document_id` is a real key that can fetch the stored draft; each field has `source_document` set
 
 **Error case:**
 1. `POST /api/v1/extraction/draft` with a `.docx` file
@@ -180,10 +181,10 @@ Use Claude API tool_use / structured output (not free-text parsing) to guarantee
 ## Open Questions
 
 1. **Multi-page PDFs:** Should all pages be sent to Claude in a single call, or page by page? Single call is simpler; page-by-page may be necessary for large documents hitting context limits.
-2. **Conflicting values across documents:** If two source documents give different values for the same field (e.g., two dates on different forms), should the system pick one, return both candidates, or flag it? No decision made — must be resolved before implementing field aggregation logic.
+2. **Conflicting values across documents:** If two source documents give different values for the same field (e.g., two dates on different forms), should the system pick one, return both candidates, or flag it? No decision made — but the field-object schema (Story 1, AC #7) is shaped to allow a `candidates` array to be added later without a migration, so this can stay open through the POC and be resolved in Epic 2.
 3. **Persona default:** What's the neutral default analyst persona when none is provided? Needs a specific string, not just "neutral."
 4. **Schema field descriptions:** Are field descriptions in the schema required, optional, or irrelevant to extraction quality? Validate empirically during implementation.
-5. **Draft persistence (cross-feature dependency):** Feature 1c (review and approval) needs the original draft to compute diffs at approval time. Three options: (a) Feature 1b stores the draft and `document_id` is a real DB key; (b) Feature 1c stores the draft when it receives it for review; (c) the client holds the draft in memory and submits both draft + final to the approval endpoint. Must be decided before implementing either feature — it determines whether this feature is truly stateless.
+5. **Draft persistence (RESOLVED — cross-feature dependency):** Feature 1c needs the original draft to compute diffs at approval time. **Decision: option (a) — Feature 1b persists the draft and `document_id` is a real DB key.** Reasoning: the integrity of the learning signal (Epic 2) depends on diffing against the *exact* draft the AI produced. The component that generates the draft is the only one that can authoritatively vouch for it; letting the client hold the draft (option c) or letting 1c store what it receives (option b) both put correctness-critical data in a layer that can silently corrupt it, and corrupted training data in a learning system fails invisibly. The earlier "stateless" criterion was a risk-scoping convenience, not a real requirement — dropped. (Privacy intent preserved: source documents are still not persisted; only the draft is.)
 
 ---
 
@@ -201,3 +202,4 @@ Use Claude API tool_use / structured output (not free-text parsing) to guarantee
 | Date | Change | Author |
 |---|---|---|
 | 2026-06-22 | Initial draft | Eric Rooney |
+| 2026-06-23 | Resolved OQ#5 (draft persistence) → option (a): 1b persists draft, `document_id` is a real key. Dropped statelessness (risk-scoping artifact, not a requirement); source docs still not persisted. Field represented as object not bare string to keep OQ#2 open without migration. POC framing made explicit. | Eric Rooney |

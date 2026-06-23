@@ -21,9 +21,9 @@ The training signal is free: the human's normal review edits are the ground-trut
 |---|---|
 | API | FastAPI (async) |
 | Data models | Pydantic v2 |
-| Database | PostgreSQL via SQLAlchemy 2.0 (async) |
-| Migrations | Alembic |
-| Task queue | ARQ (async Redis queue) for batch reliability recomputation |
+| Database | SQLite via raw `sqlite3` — deliberate POC choice, local testing only, no production target |
+| Migrations | None — `create_all()` on startup; schema changes are manual for this POC |
+| Task queue | ARQ (async Redis queue) — planned for Epic 2, not active yet |
 | AI extraction | Anthropic Claude API (claude-sonnet-4-6 default) |
 | Testing | pytest + pytest-asyncio |
 | Linting | ruff |
@@ -37,8 +37,6 @@ The training signal is free: the human's normal review edits are the ground-trut
 confidence-routed-extraction/
 ├── CLAUDE.md
 ├── pyproject.toml
-├── alembic/
-│   └── versions/
 ├── src/
 │   └── extraction/
 │       ├── api/            # FastAPI routers
@@ -46,10 +44,9 @@ confidence-routed-extraction/
 │       │   ├── pipeline.py     # Draft → review → approval flow
 │       │   ├── diff.py         # Touch detection
 │       │   └── reliability.py  # Per-field reliability model
-│       ├── models/         # SQLAlchemy ORM models
 │       ├── schemas/        # Pydantic request/response schemas
-│       ├── tasks/          # ARQ background tasks
-│       └── db/             # Session, base, migrations helpers
+│       ├── tasks/          # ARQ background tasks (Epic 2)
+│       └── db.py           # All sqlite3 access in one place
 └── tests/
     ├── unit/
     └── integration/
@@ -57,34 +54,25 @@ confidence-routed-extraction/
 
 **Rule:** Business logic lives in `core/` with no FastAPI imports. Routers are thin — they validate input, call core, return output.
 
+**Rule:** All `sqlite3` calls live in `db.py`. No cursor or connection usage anywhere else in the codebase.
+
 ---
 
 ## Development Setup
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env          # fill in ANTHROPIC_API_KEY, DATABASE_URL, REDIS_URL
-alembic upgrade head
-uvicorn extraction.api.main:app --reload
+cp .env.example .env          # fill in ANTHROPIC_API_KEY
+PYTHONPATH=src uvicorn extraction.api.main:app --reload
 ```
 
-Run ARQ worker (required for background reliability recomputation):
-```bash
-python -m arq extraction.tasks.worker.WorkerSettings
-```
+The SQLite database (`drafts.db`) is created automatically on first startup — no migration step needed.
 
-Create a new migration after model changes:
-```bash
-alembic revision --autogenerate -m "describe the change"
-alembic upgrade head
-```
-
-Run tests:
+Run tests (`pythonpath = ["src"]` is set in pyproject.toml so no env var needed for pytest):
 ```bash
 pytest                        # all tests
-pytest tests/unit/            # unit only (no DB required)
-pytest tests/integration/     # requires running Postgres + Redis
+pytest tests/unit/            # unit only (no DB or API key required)
 ```
 
 Type check and lint:
@@ -107,22 +95,22 @@ This project follows a **define → plan → implement → verify → review →
 ### Plan
 - Use `/feature-dev` to explore the codebase and draft an implementation plan before writing code.
 - Architectural decisions belong in the plan, not in comments or PR descriptions.
-- DB schema changes require an Alembic migration in the same PR.
+- DB schema changes are made directly in `db.py` (`CREATE TABLE` statements); no migration tooling exists for this POC.
 
 ### Implement
-- New endpoints: router → schema → core logic → task (if async) — in that order.
-- No business logic in routers. No raw SQL outside `db/`.
+- New endpoints: router → schema → core logic — in that order.
+- No business logic in routers. No `sqlite3` calls outside `db.py`.
 - Pydantic models are the contract boundary: use them for all API input/output and for field schemas passed to the AI extraction step.
-- Keep `core/` pure: no FastAPI, no SQLAlchemy inside `core/pipeline.py`, `core/diff.py`, or `core/reliability.py`.
+- Keep `core/` pure: no FastAPI, no `sqlite3` inside `core/pipeline.py`, `core/diff.py`, or `core/reliability.py`.
 
 ### Verify
 - Every PR must pass: `pyright`, `ruff`, `pytest tests/unit/`
-- Integration tests required for: new endpoints, migration changes, reliability model logic
+- Unit tests mock the Claude API and do not require a running DB or API key.
 - Run `/security-guidance` before committing. (Configure as a hook once the repo is active.)
 
 ### Review
 - Use `/code-review` for automated PR review before requesting human review.
-- Reviewer checklist: core/router separation respected, Pydantic schemas complete, migration reversible, touch-detection edge cases covered.
+- Reviewer checklist: core/router separation respected, Pydantic schemas complete, all `sqlite3` calls confined to `db.py`, touch-detection edge cases covered.
 
 ### Ship
 - Use `/commit-commands` for commit, push, and PR creation.
@@ -133,7 +121,7 @@ This project follows a **define → plan → implement → verify → review →
 
 ## Coding Conventions
 
-**Async everywhere.** All DB calls, HTTP calls, and task handlers are `async`. No sync SQLAlchemy sessions in route handlers.
+**Async for HTTP and Claude API calls.** FastAPI route handlers and `anthropic` SDK calls are `async`. `sqlite3` is synchronous — calls go through `db.py` directly without asyncio wrappers (acceptable for this local POC).
 
 **Pydantic v2 style.** Use `model_validator` and `field_validator`, not `validator`. Annotate with `Annotated[...]` for constraints.
 
