@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import Any
 
 from extraction.schemas.extraction import (
+    FieldFlag,
     ReliabilityScore,
     Routing,
     RoutingBasis,
@@ -94,3 +95,26 @@ def route_for(
         basis="unproven",
         samples=0,
     )
+
+
+def build_field_flags(
+    field_types: dict[str, str], scores: list[ReliabilityScore]
+) -> dict[str, FieldFlag]:
+    """Per-field review flags (Feature 2c) — one ``FieldFlag`` per draft field.
+
+    Each field is routed against its own ``document_type`` bucket; ``flagged`` is
+    the boolean "highlight this" signal (``routing == "mandatory_review"``).
+    Unproven/unseen field-groups flag by the safe default.
+    """
+    flags: dict[str, FieldFlag] = {}
+    for field_name, document_type in field_types.items():
+        decision = route_for(field_name, document_type, scores)
+        flags[field_name] = FieldFlag(
+            field_name=field_name,
+            document_type=document_type,
+            routing=decision.routing,
+            basis=decision.basis,
+            flagged=decision.routing == "mandatory_review",
+            samples=decision.samples,
+        )
+    return flags
