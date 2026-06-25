@@ -69,6 +69,8 @@ cp .env.example .env          # fill in ANTHROPIC_API_KEY
 PYTHONPATH=src uvicorn extraction.api.main:app --reload
 ```
 
+`.env` is loaded automatically at app startup via `python-dotenv` (`load_dotenv` in `api/main.py`); real environment variables take precedence over `.env`.
+
 The SQLite database (`drafts.db`) is created automatically on first startup — no migration step needed.
 
 Run tests (`pythonpath = ["src"]` is set in pyproject.toml so no env var needed for pytest):
