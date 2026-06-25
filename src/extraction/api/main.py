@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -17,6 +18,11 @@ from extraction.core.pipeline import (
     NoDocumentsError,
     UnsupportedFormatError,
 )
+
+# Load ANTHROPIC_API_KEY (and any other vars) from a local .env if present, so the
+# documented `cp .env.example .env` + `uvicorn` flow works without exporting by hand.
+# Real environment variables always take precedence (override=False).
+load_dotenv(override=False)
 
 
 @asynccontextmanager
