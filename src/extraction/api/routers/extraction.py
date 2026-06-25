@@ -13,7 +13,7 @@ from extraction.core.pipeline import (
     FileTooLargeError,
     NoDocumentsError,
     UnsupportedFormatError,
-    _resolve_media_type,
+    resolve_media_type,
     run_extraction,
 )
 from extraction.schemas.extraction import DocumentDraft, FieldSchemaItem
@@ -53,7 +53,7 @@ async def create_draft(
     for i, upload in enumerate(documents):
         content = await upload.read()
         filename = upload.filename or f"document_{i}"
-        media_type = _resolve_media_type(upload.content_type, filename)
+        media_type = resolve_media_type(upload.content_type, filename)
 
         if media_type not in SUPPORTED_MEDIA_TYPES:
             raise UnsupportedFormatError(f"Unsupported format for '{filename}': {media_type!r}")

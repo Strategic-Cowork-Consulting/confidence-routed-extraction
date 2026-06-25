@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -27,7 +27,7 @@ load_dotenv(override=False)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     db.init_db()
     yield
 
@@ -39,7 +39,7 @@ app.include_router(reliability_router.router)
 
 
 @app.exception_handler(UnsupportedFormatError)
-async def _unsupported_format(request: Request, exc: UnsupportedFormatError) -> JSONResponse:
+async def on_unsupported_format(request: Request, exc: UnsupportedFormatError) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={"error": "unsupported_format", "detail": "Supported: pdf, png, jpg, txt"},
@@ -47,7 +47,7 @@ async def _unsupported_format(request: Request, exc: UnsupportedFormatError) -> 
 
 
 @app.exception_handler(FileTooLargeError)
-async def _file_too_large(request: Request, exc: FileTooLargeError) -> JSONResponse:
+async def on_file_too_large(request: Request, exc: FileTooLargeError) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={"error": "file_too_large", "detail": "Max 10MB per document"},
@@ -55,7 +55,7 @@ async def _file_too_large(request: Request, exc: FileTooLargeError) -> JSONRespo
 
 
 @app.exception_handler(NoDocumentsError)
-async def _no_documents(request: Request, exc: NoDocumentsError) -> JSONResponse:
+async def on_no_documents(request: Request, exc: NoDocumentsError) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={"error": "no_documents", "detail": "At least one document is required"},
@@ -63,7 +63,7 @@ async def _no_documents(request: Request, exc: NoDocumentsError) -> JSONResponse
 
 
 @app.exception_handler(AllExtractionsFailed)
-async def _all_failed(request: Request, exc: AllExtractionsFailed) -> JSONResponse:
+async def on_all_failed(request: Request, exc: AllExtractionsFailed) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={"error": "all_extractions_failed", "detail": str(exc)},
@@ -71,7 +71,7 @@ async def _all_failed(request: Request, exc: AllExtractionsFailed) -> JSONRespon
 
 
 @app.exception_handler(ClaudeRateLimitError)
-async def _rate_limited(request: Request, exc: ClaudeRateLimitError) -> JSONResponse:
+async def on_rate_limited(request: Request, exc: ClaudeRateLimitError) -> JSONResponse:
     return JSONResponse(
         status_code=503,
         content={"error": "rate_limited"},
@@ -80,7 +80,7 @@ async def _rate_limited(request: Request, exc: ClaudeRateLimitError) -> JSONResp
 
 
 @app.exception_handler(ClaudeTimeoutError)
-async def _timeout(request: Request, exc: ClaudeTimeoutError) -> JSONResponse:
+async def on_timeout(request: Request, exc: ClaudeTimeoutError) -> JSONResponse:
     return JSONResponse(
         status_code=504,
         content={"error": "extraction_timeout"},

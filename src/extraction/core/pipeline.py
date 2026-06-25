@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 import anthropic
+from anthropic.types import MessageParam
 
 from extraction.schemas.extraction import (
     DOCUMENT_TYPES,
@@ -88,7 +89,7 @@ class _DocumentFailed(Exception):
 # ---------------------------------------------------------------------------
 
 
-def _resolve_media_type(content_type: str | None, filename: str) -> str:
+def resolve_media_type(content_type: str | None, filename: str) -> str:
     """Return the effective MIME type, falling back to filename extension."""
     if content_type and content_type not in ("application/octet-stream", ""):
         return content_type
@@ -187,22 +188,29 @@ async def _extract_one(
     client: anthropic.AsyncAnthropic,
 ) -> tuple[DocumentResult, dict[str, FieldValue]]:
     content_block = _make_content_block(content, media_type)
+    # The Anthropic SDK's input param types (MessageParam / ToolParam / tool_choice)
+    # are unions of TypedDicts that inline dict literals don't satisfy structurally;
+    # cast at this SDK boundary rather than hand-build the typed shapes.
+    messages = cast(
+        "list[MessageParam]",
+        [
+            {
+                "role": "user",
+                "content": [
+                    content_block,
+                    {"type": "text", "text": "Extract all requested fields from this document."},
+                ],
+            }
+        ],
+    )
     try:
-        response = await client.messages.create(  # type: ignore[call-overload]
+        response = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=4096,
             system=persona,
-            tools=[tool],  # type: ignore[arg-type]
-            tool_choice={"type": "tool", "name": "extract_document_data"},  # type: ignore[arg-type]
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        content_block,
-                        {"type": "text", "text": "Extract all requested fields from this document."},  # noqa: E501
-                    ],
-                }
-            ],
+            tools=cast("list[Any]", [tool]),
+            tool_choice=cast("Any", {"type": "tool", "name": "extract_document_data"}),
+            messages=messages,
         )
     except anthropic.RateLimitError as exc:
         raise ClaudeRateLimitError("Claude API rate limit reached") from exc
@@ -224,9 +232,10 @@ async def _extract_one(
 
     field_values: dict[str, FieldValue] = {}
     for field in field_schema:
-        raw_field = raw_fields.get(field.name)
-        if not isinstance(raw_field, dict):
-            raw_field = {}
+        raw_field_obj = raw_fields.get(field.name)
+        raw_field: dict[str, Any] = (
+            cast(dict[str, Any], raw_field_obj) if isinstance(raw_field_obj, dict) else {}
+        )
         value = raw_field.get("value")
         not_found = raw_field.get("not_found", value is None)
         field_values[field.name] = FieldValue(
