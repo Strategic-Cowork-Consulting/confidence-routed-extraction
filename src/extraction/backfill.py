@@ -15,6 +15,8 @@ import json
 import logging
 from datetime import datetime
 
+from pydantic import ValidationError
+
 from extraction import db
 from extraction.core.observations import build_observations
 from extraction.schemas.extraction import DocumentDraft
@@ -41,7 +43,12 @@ def run_backfill() -> dict[str, int]:
             touches: dict[str, bool] = json.loads(row["touch_json"])
             approved_at = datetime.fromisoformat(row["approved_at"])
             observations = build_observations(draft, touches, approved_at)
-        except Exception:
+        except (json.JSONDecodeError, ValidationError, KeyError, ValueError):
+            # Only the failure modes that genuinely mean "this draft can't be
+            # reconstructed" are skipped: bad JSON, a draft that fails schema
+            # validation, a missing field/key, or a bad timestamp. Any other
+            # exception (e.g. a bug in build_observations) propagates so it
+            # surfaces as a real error rather than an ambiguous skip.
             logger.exception("backfill: skipping approval %s — draft unrebuildable", document_id)
             skipped += 1
             continue
