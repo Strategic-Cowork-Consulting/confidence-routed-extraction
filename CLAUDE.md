@@ -66,10 +66,13 @@ confidence-routed-extraction/
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env          # fill in ANTHROPIC_API_KEY
+git config core.hooksPath .githooks   # enable the secret-scanning pre-commit hook (once per clone)
 PYTHONPATH=src uvicorn extraction.api.main:app --reload
 ```
 
 `.env` is loaded automatically at app startup via `python-dotenv` (`load_dotenv` in `api/main.py`); real environment variables take precedence over `.env`.
+
+**Secret guard:** `.githooks/pre-commit` blocks commits that stage a real-looking secret (`sk-ant-`, `ghp_`, `github_pat_`, `AKIA…`, PEM private keys); obvious placeholders (e.g. `sk-ant-...`) are allowed. It activates only after the `git config core.hooksPath .githooks` step above — that config is local and does not travel with a clone. Bypass a false positive with `git commit --no-verify`.
 
 The SQLite database (`drafts.db`) is created automatically on first startup — no migration step needed.
 

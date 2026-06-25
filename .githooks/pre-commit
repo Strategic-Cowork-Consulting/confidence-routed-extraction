@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook: block real-looking secrets from being committed.
+# Scans only the staged additions (the lines you're about to commit).
+# Obvious placeholders (sk-ant-..., ghp_xxx, "your-key-here") are allowed.
+#
+# Enable in a fresh clone with:  git config core.hooksPath .githooks
+#
+set -euo pipefail
+
+# Collect added lines from the staged diff (no context lines).
+added="$(git diff --cached --no-color -U0 --diff-filter=ACM | grep -E '^[+]' | grep -vE '^[+][+][+]' || true)"
+
+[ -z "$added" ] && exit 0
+
+# Real-credential signatures. Kept deliberately tight to avoid false positives.
+#   sk-ant-api...   real Anthropic keys carry a real body, not "..." or "xxx"
+#   ghp_<36>        GitHub PAT (classic)
+#   github_pat_     GitHub PAT (fine-grained)
+#   AKIA<16>        AWS access key id
+#   BEGIN ... KEY   PEM private key block
+patterns='sk-ant-(api[0-9]+-)?[A-Za-z0-9_-]{24,}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+
+# Filter out obvious placeholders so .env.example and docs don't trip the hook.
+hits="$(printf '%s\n' "$added" \
+  | grep -nE "$patterns" \
+  | grep -ivE 'your[-_]?key|example|placeholder|xxx+|\.\.\.|REDACTED|<[A-Za-z_-]+>' \
+  || true)"
+
+if [ -n "$hits" ]; then
+  echo "" >&2
+  echo "🛑 pre-commit: a real-looking secret is staged. Commit blocked." >&2
+  echo "" >&2
+  printf '%s\n' "$hits" >&2
+  echo "" >&2
+  echo "If this is a genuine placeholder, make it obviously fake (e.g. end with ...)." >&2
+  echo "To bypass intentionally (rarely a good idea): git commit --no-verify" >&2
+  echo "" >&2
+  exit 1
+fi
+
+exit 0
