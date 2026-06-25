@@ -44,11 +44,12 @@ confidence-routed-extraction/
 │       │   ├── pipeline.py     # Draft → review → approval flow
 │       │   ├── diff.py         # Touch detection
 │       │   ├── observations.py # Per-field touch observations (Feature 2a)
-│       │   └── reliability.py  # Per-field-group scores + routing (Feature 2b)
+│       │   ├── reliability.py  # Per-field-group scores + routing (Feature 2b)
+│       │   └── config.py       # Effective persona + reference-doc composition (Feature 1a)
 │       ├── schemas/        # Pydantic request/response schemas
 │       ├── tasks/          # ARQ background tasks (Epic 2)
 │       ├── backfill.py     # Derive observations for pre-2a approvals (Feature 2a)
-│       └── db.py           # All sqlite3 access (drafts, approvals, field_observations)
+│       └── db.py           # All sqlite3 (drafts, approvals, field_observations, config, reference_documents)
 └── tests/
     ├── unit/
     └── integration/

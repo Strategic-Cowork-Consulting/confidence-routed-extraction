@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
 
 from extraction import db
+from extraction.core.config import PERSONA_CONFIG_KEY, compose_persona
 from extraction.core.pipeline import (
     MAX_FILE_BYTES,
     SUPPORTED_MEDIA_TYPES,
@@ -16,7 +17,7 @@ from extraction.core.pipeline import (
     resolve_media_type,
     run_extraction,
 )
-from extraction.schemas.extraction import DocumentDraft, FieldSchemaItem
+from extraction.schemas.extraction import DocumentDraft, FieldSchemaItem, ReferenceDoc
 
 router = APIRouter(prefix="/api/v1/extraction")
 
@@ -62,7 +63,13 @@ async def create_draft(
 
         doc_tuples.append((filename, content, media_type))
 
-    draft = await run_extraction(doc_tuples, schema, analyst_persona)
+    # Feature 1a — resolve the effective persona (per-request > persisted > default)
+    # and fold in saved reference documents.
+    base_persona = analyst_persona or db.get_config(PERSONA_CONFIG_KEY)
+    reference_docs = [ReferenceDoc.model_validate(row) for row in db.list_reference_docs()]
+    effective_persona = compose_persona(base_persona, reference_docs)
+
+    draft = await run_extraction(doc_tuples, schema, effective_persona)
 
     # sqlite3 is synchronous — acceptable for this local POC
     db.save_draft(draft.document_id, draft.model_dump_json(), draft.created_at.isoformat())
