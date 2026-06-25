@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from extraction import db
 from extraction.api.routers import extraction as extraction_router
+from extraction.api.routers import reliability as reliability_router
 from extraction.api.routers import review as review_router
 from extraction.core.pipeline import (
     AllExtractionsFailed,
@@ -34,6 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Confidence-Routed Extraction", lifespan=lifespan)
 app.include_router(extraction_router.router)
 app.include_router(review_router.router)
+app.include_router(reliability_router.router)
 
 
 @app.exception_handler(UnsupportedFormatError)

@@ -103,3 +103,35 @@ class FieldObservation(BaseModel):
     document_type: str  # "unknown" when the source document can't be resolved
     touched: bool
     approved_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Reliability model (Feature 2b)
+# ---------------------------------------------------------------------------
+
+Routing = Literal["mandatory_review", "light_review"]
+RoutingBasis = Literal["unproven", "high_change_rate", "low_change_rate"]
+
+
+class ReliabilityScore(BaseModel):
+    """Per-field-group reliability + routing, derived on read from touch counts."""
+
+    field_name: str
+    document_type: str
+    samples: int
+    touched: int
+    change_rate: float  # touched / samples
+    reliability: float  # 1 - change_rate
+    proven: bool  # samples >= min_sample_threshold
+    routing: Routing
+    basis: RoutingBasis
+
+
+class RoutingDecision(BaseModel):
+    """Routing for one field on one document type; `samples == 0` means unseen."""
+
+    field_name: str
+    document_type: str
+    routing: Routing
+    basis: RoutingBasis
+    samples: int

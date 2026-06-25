@@ -44,7 +44,7 @@ confidence-routed-extraction/
 │       │   ├── pipeline.py     # Draft → review → approval flow
 │       │   ├── diff.py         # Touch detection
 │       │   ├── observations.py # Per-field touch observations (Feature 2a)
-│       │   └── reliability.py  # Per-field reliability model (Feature 2b — not built)
+│       │   └── reliability.py  # Per-field-group scores + routing (Feature 2b)
 │       ├── schemas/        # Pydantic request/response schemas
 │       ├── tasks/          # ARQ background tasks (Epic 2)
 │       ├── backfill.py     # Derive observations for pre-2a approvals (Feature 2a)
