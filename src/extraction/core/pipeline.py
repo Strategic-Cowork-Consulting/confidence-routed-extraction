@@ -9,11 +9,24 @@ from typing import Any, cast
 import anthropic
 
 from extraction.schemas.extraction import (
+    DOCUMENT_TYPES,
     DocumentDraft,
     DocumentResult,
+    DocumentType,
     FieldSchemaItem,
     FieldValue,
 )
+
+
+def _normalize_document_type(value: object) -> DocumentType:
+    """Coerce the model's document_type to the canonical vocabulary.
+
+    Off-list or non-string values fall back to ``"unknown"`` (the safe default),
+    so the constrained DocumentResult never receives an invalid type.
+    """
+    if isinstance(value, str) and value in DOCUMENT_TYPES:
+        return value  # narrowed to DocumentType by the membership check
+    return "unknown"
 
 DEFAULT_PERSONA = (
     "You are a precise document analyst with one year of professional experience. "
@@ -115,10 +128,12 @@ def _build_extraction_tool(field_schema: list[FieldSchemaItem]) -> dict[str, Any
             "properties": {
                 "document_type": {
                     "type": "string",
+                    "enum": list(DOCUMENT_TYPES),
                     "description": (
-                        "Detected document type. Use one of: 'scientific_paper', "
-                        "'legal_document', 'passport', 'diploma', 'proposal', "
-                        "'handwritten_note', 'unknown'."
+                        "Detected document type. Choose the closest match from the "
+                        "allowed values; use 'unknown' only if none fit. Academic "
+                        "records of courses and grades are 'transcript' (distinct "
+                        "from 'diploma', which certifies a conferred degree)."
                     ),
                 },
                 "fields": {
@@ -204,7 +219,7 @@ async def _extract_one(
         raise _DocumentFailed("Claude did not return a tool_use block")
 
     raw = cast(dict[str, Any], tool_use.input)  # type: ignore[union-attr]
-    document_type: str = raw.get("document_type", "unknown")
+    document_type: DocumentType = _normalize_document_type(raw.get("document_type"))
     raw_fields = cast(dict[str, Any], raw.get("fields", {}))
 
     field_values: dict[str, FieldValue] = {}

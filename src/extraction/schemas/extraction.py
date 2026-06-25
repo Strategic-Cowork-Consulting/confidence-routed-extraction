@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel
+
+# Canonical document-type vocabulary — the single source of truth shared by the
+# extraction tool (pipeline) and the reliability model (Feature 2b). `transcript`
+# was missing originally, so transcripts were misclassified as `diploma` (#13).
+DocumentType = Literal[
+    "transcript",
+    "diploma",
+    "passport",
+    "scientific_paper",
+    "legal_document",
+    "proposal",
+    "handwritten_note",
+    "unknown",
+]
+DOCUMENT_TYPES: tuple[DocumentType, ...] = get_args(DocumentType)
 
 
 class FieldSchemaItem(BaseModel):
@@ -27,7 +42,7 @@ class FieldValue(BaseModel):
 
 class DocumentResult(BaseModel):
     filename: str
-    document_type: str
+    document_type: DocumentType
     extraction_status: Literal["ok", "failed"] = "ok"
     error: str | None = None
 
