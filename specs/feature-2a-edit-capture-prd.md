@@ -32,7 +32,7 @@ This directly serves the Vision Brief's core loop ("every approved document's di
 4. `AC-1.4` `[MUST]` `document_type` is derived by mapping the field's `source_document` to the matching `DocumentResult.filename` in the draft and reading that document's `document_type`.
 5. `AC-1.5` `[MUST]` If a field's `source_document` matches no `DocumentResult` (or is empty), `document_type` is recorded as the literal `"unknown"` — the observation is still written, never dropped.
 6. `AC-1.6` `[MUST]` Observation construction lives in `core/` as a pure function — no FastAPI, no `sqlite3` — taking the draft + computed touch record and returning a list of observation objects.
-7. `AC-1.7` `[SHOULD]` Capture happens in the same logical unit as the approval write, so a stored approval always has matching observations (no approval without observations).
+7. `AC-1.7` `[MUST]` Capture and the approval write happen in **one transaction** — a single `db.save_approval(...)` call persists the approval row and all its observations together, so an approval can never exist without its matching observations (and vice versa).
 
 ### US-2 — Backfill observations from existing approvals
 **As a** reliability pipeline, **I want** to derive observations from approvals that were recorded before 2a existed, **so that** already-approved documents contribute to the model from day one.
@@ -80,13 +80,13 @@ This directly serves the Vision Brief's core loop ("every approved document's di
 ## Approach
 2a sits immediately after 1c's `save_approval`. Feature 1c's approve flow already produces, in one place, both the original `DocumentDraft` and the computed `dict[str, bool]` touch record. 2a adds:
 
-1. **`core/observations.py` (pure):** `build_observations(draft, touches) -> list[FieldObservation]`. For each field in `draft.fields`, resolve `document_type` by matching `field.source_document` against `draft.documents[*].filename`; fall back to `"unknown"`. Pair it with the field's `touched` flag and the draft's `created_at`/approval time.
+1. **`core/observations.py` (pure):** `build_observations(draft, touches, approved_at) -> list[FieldObservation]`. For each field in `draft.fields`, resolve `document_type` by matching `field.source_document` against `draft.documents[*].filename`; fall back to `"unknown"`. Pair it with the field's `touched` flag and the approval timestamp.
 2. **`field_observations` table** with a composite primary key `(document_id, field_name)` — this is what makes both capture and backfill idempotent for free.
-3. **`db.save_observations(rows)`** called right after `db.save_approval(...)` in the approve path, so an approval and its observations are written together.
+3. **Combined write (AC-1.7):** `db.save_approval(...)` is extended to persist the approval row **and** its observation rows inside a **single transaction** (one `_connect()` context). The approve handler builds the observations via `core.build_observations` and passes them to `save_approval` — so the two writes commit or fail together. No separate `save_observations` call in the request path.
 4. **`db.get_observations(...)`** and **`db.get_bucket_counts(group_key)`** reads for 2b and verification.
-5. **A backfill entry point** that iterates existing approvals, rebuilds observations via the same pure function, and `INSERT OR IGNORE`s them.
+5. **Backfill** lives in a dedicated orchestration module **`src/extraction/backfill.py`** (`run_backfill()` + `python -m extraction.backfill`) — it iterates existing approvals via a `db` read, rebuilds observations with the same pure `core.build_observations`, and `INSERT OR IGNORE`s them. Orchestration sits outside `db.py` (which stays SQL-only) and outside `core/` (which stays I/O-free). Backfill uses a dedicated `db.save_observations(rows)` insert (separate from the combined approval write, since there is no new approval to write).
 
-The grouping key is defined once (e.g. a module-level `DEFAULT_GROUP_KEY = ("field_name", "document_type")` plus an override hook) and passed into the grouped read — never inlined as literal column names in business logic.
+The grouping key is defined once as a module-level `DEFAULT_GROUP_KEY = ("field_name", "document_type")` and passed into the grouped read — never inlined as literal column names in business logic.
 
 ---
 
@@ -162,7 +162,8 @@ CREATE TABLE IF NOT EXISTS field_observations (
 - **Do not re-implement touch logic** — 2a consumes `compute_touches` output verbatim; the touch definition stays solely in `core/diff.py`.
 - **No baked-in granularity** — grouping key defined once and passed in; query logic must not hardcode `field × document_type`.
 - **Immutable observations** — append-only; never updated or deleted.
-- **Minimal change to 1c** — capture is an added call after `save_approval`, not a rewrite of the approve endpoint.
+- **Atomic capture** — `db.save_approval` is extended to write the approval row and its observations in one transaction (AC-1.7); the approve handler change is limited to building observations and passing them in, not restructuring the endpoint's validation/flow.
+- **Backfill isolated** — backfill orchestration lives in `src/extraction/backfill.py`, composing `db` (SQL) + `core` (pure derivation); it does not put SQL in `core/` or composition logic in `db.py`.
 
 ---
 
@@ -221,3 +222,4 @@ _All resolved 2026-06-25 at spec time._
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-06-25 | Initial draft | Eric Rooney / Claude |
+| 2026-06-25 | Fold in planning decisions: AC-1.7 → MUST atomic (combined `save_approval` transaction); backfill pinned to `src/extraction/backfill.py` | Eric Rooney / Claude |
