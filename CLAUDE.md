@@ -146,21 +146,34 @@ These were evaluated and rejected — do not re-open without a strong reason:
 
 ---
 
-## Open Design Questions (Not Yet Resolved)
+## Resolved Design Decisions (Epic 2 — locked 2026-06-25, closes #9)
 
-These are active design questions. Do not assume an answer; surface them explicitly when they affect implementation.
+**Unifying principle:** configurable defaults, with **"unproven → mandatory review"** as the
+safe fallback everywhere. This single rule is the overfitting defense, the cold-start behavior,
+and the graceful-degradation-on-new-inputs guarantee — the Vision Brief's biggest stated risk,
+resolved in design. Any code computing or storing reliability scores must honor it.
 
-**1. Granularity of the reliability model (CENTRAL)**
-Per-field is the floor. The useful version is conditional: `field × document_type`, possibly `× source_country` or `× language`.
-- Too coarse ("GPA" across all doc types) → flags everything, no signal
-- Too fine (per-institution) → never enough samples
-The right grouping is unsolved. Any code that computes or stores reliability scores must not bake in a granularity assumption — design for the grouping key to be configurable.
+**1. Reliability model granularity**
+The grouping key is **configurable** (a list, e.g. `["field", "document_type"]`) — never a
+hardcoded assumption. POC default: `field × document_type`. `field` alone is too coarse (a field
+behaves differently by doc type — GPA on a transcript vs. a diploma); adding `× country`/`× language`
+is too fine for POC data volume (buckets explode, none populate). Add levels to the key later when
+data supports it. **Unseen buckets → mandatory review** until they clear the sample threshold (see
+#3); a new country/type never inherits another bucket's score.
 
 **2. Cosmetic edits**
-Current lean: count ALL touches as signal. The question "was this field ship-ready?" means a cosmetic edit IS a signal that the field wasn't ready. But this must be an explicit config option, not a hidden assumption.
+Count **all non-whitespace touches** as signal (whitespace is already normalized out in Feature 1c).
+Exposed as a documented flag `count_cosmetic_edits`, default `true`. Rationale: the question is "was
+this field ship-ready as drafted?" — a reworded field wasn't, by the reviewer's standard, even if
+technically correct. Distinguishing real error from cosmetic reword needs semantic judgment
+(LLM-as-judge), reintroducing the complexity the binary approach exists to avoid. Semantic filtering
+of cosmetic edits is **deferred** to a possible future iteration.
 
 **3. Minimum sample threshold before routing decisions**
-How many samples does a field-group need before its reliability score is trusted? Below threshold, default behavior (mandatory review) must be documented.
+**Configurable** threshold; below it a bucket defaults to **mandatory review**. POC default:
+**5 samples** — explicitly a *demonstrability* value (lets buckets cross the threshold on limited
+POC data so routing behavior is observable), **not** a statistically sound one. Production would
+need ~30+ for real confidence. Documented as such.
 
 ---
 
