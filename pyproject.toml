@@ -9,6 +9,7 @@ requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.40",
     "fastapi>=0.111",
+    "python-dotenv>=1.0",
     "python-multipart>=0.0.9",
     "pydantic>=2.7",
     "uvicorn[standard]>=0.29",
