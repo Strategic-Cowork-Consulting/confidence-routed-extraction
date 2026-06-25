@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
 
 from extraction import db
 from extraction.core.diff import compute_touches
+from extraction.core.observations import build_observations
 from extraction.schemas.extraction import (
     ApprovalRequest,
     ApprovalResult,
@@ -14,6 +16,8 @@ from extraction.schemas.extraction import (
     DraftWithStatus,
     TouchSummary,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/review")
 
@@ -69,11 +73,23 @@ async def approve_draft(document_id: str, body: ApprovalRequest) -> ApprovalResu
     touch_count = len(touched)
 
     approved_at = datetime.now(tz=UTC)
+    observations = build_observations(draft, touches, approved_at)
+    # Atomic (AC-1.7): approval + observations write in one transaction. A DB
+    # failure rolls both back and propagates → HTTP 500; the approval is not
+    # persisted and the reviewer resubmits. Deliberate POC trade-off.
     db.save_approval(
         document_id=document_id,
         approved_json=json.dumps(body.fields),
         touch_json=json.dumps(touches),
         approved_at=approved_at.isoformat(),
+        observations=observations,
+    )
+    logger.info(
+        "observations_written document_id=%s field_count=%d touched_count=%d doc_types=%d",
+        document_id,
+        total,
+        touch_count,
+        len({o.document_type for o in observations}),
     )
 
     return ApprovalResult(
