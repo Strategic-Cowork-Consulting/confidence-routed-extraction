@@ -30,6 +30,20 @@ def _document_type_for(source_document: str, type_by_filename: dict[str, str]) -
     return type_by_filename.get(source_document, UNKNOWN_DOCUMENT_TYPE)
 
 
+def field_document_types(draft: DocumentDraft) -> dict[str, str]:
+    """Map each draft field to its resolved ``document_type``.
+
+    Shared by Feature 2a (observation capture) and Feature 2c (review flags) so the
+    field→document_type derivation lives in exactly one place. Unresolved sources
+    resolve to ``"unknown"``.
+    """
+    type_by_filename = {doc.filename: doc.document_type for doc in draft.documents}
+    return {
+        field_name: _document_type_for(fv.source_document, type_by_filename)
+        for field_name, fv in draft.fields.items()
+    }
+
+
 def build_observations(
     draft: DocumentDraft,
     touches: dict[str, bool],
@@ -40,14 +54,14 @@ def build_observations(
     `touches` is the verbatim output of ``compute_touches`` for this approval;
     `touched` is copied straight through, not recomputed.
     """
-    type_by_filename = {doc.filename: doc.document_type for doc in draft.documents}
+    types = field_document_types(draft)
     return [
         FieldObservation(
             document_id=draft.document_id,
             field_name=field_name,
-            document_type=_document_type_for(fv.source_document, type_by_filename),
+            document_type=types[field_name],
             touched=touches[field_name],
             approved_at=approved_at,
         )
-        for field_name, fv in draft.fields.items()
+        for field_name in draft.fields
     ]

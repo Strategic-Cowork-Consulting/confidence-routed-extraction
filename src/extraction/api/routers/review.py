@@ -7,8 +7,13 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 
 from extraction import db
+from extraction.core import reliability
 from extraction.core.diff import compute_touches
-from extraction.core.observations import build_observations
+from extraction.core.observations import (
+    DEFAULT_GROUP_KEY,
+    build_observations,
+    field_document_types,
+)
 from extraction.schemas.extraction import (
     ApprovalRequest,
     ApprovalResult,
@@ -30,12 +35,27 @@ async def get_draft_for_review(document_id: str) -> DraftWithStatus:
 
     approval_status = "approved" if db.get_approval(document_id) is not None else "pending"
     draft = DocumentDraft.model_validate(raw)
+
+    # Feature 2c — annotate each field with its reliability flag (derived on read).
+    scores = reliability.score_buckets(db.get_bucket_counts(DEFAULT_GROUP_KEY))
+    field_flags = reliability.build_field_flags(field_document_types(draft), scores)
+    flagged_count = sum(f.flagged for f in field_flags.values())
+    logger.info(
+        "flags_served document_id=%s total_fields=%d flagged_count=%d",
+        document_id,
+        len(field_flags),
+        flagged_count,
+    )
+
     return DraftWithStatus(
         document_id=draft.document_id,
         fields=draft.fields,
         documents=draft.documents,
         created_at=draft.created_at,
         approval_status=approval_status,
+        field_flags=field_flags,
+        flagged_count=flagged_count,
+        total_fields=len(field_flags),
     )
 
 

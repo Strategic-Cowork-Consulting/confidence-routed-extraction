@@ -60,9 +60,15 @@ class DocumentDraft(BaseModel):
 
 
 class DraftWithStatus(DocumentDraft):
-    """DocumentDraft returned by GET /review/{id}, extended with approval status."""
+    """DocumentDraft returned by GET /review/{id}, extended with approval status.
+
+    Feature 2c additively annotates each field with a reliability flag.
+    """
 
     approval_status: Literal["pending", "approved"]
+    field_flags: dict[str, FieldFlag]  # keyed by field_name; one per draft field
+    flagged_count: int
+    total_fields: int
 
 
 class ApprovalRequest(BaseModel):
@@ -135,3 +141,26 @@ class RoutingDecision(BaseModel):
     routing: Routing
     basis: RoutingBasis
     samples: int
+
+
+# ---------------------------------------------------------------------------
+# Confidence highlighting (Feature 2c)
+# ---------------------------------------------------------------------------
+
+
+class FieldFlag(BaseModel):
+    """Per-field review flag surfaced on the review-fetch response (Feature 2c).
+
+    `flagged` is the boolean "highlight this" signal the external UI renders.
+    """
+
+    field_name: str
+    document_type: str
+    routing: Routing
+    basis: RoutingBasis
+    flagged: bool  # routing == "mandatory_review"
+    samples: int
+
+
+# Resolve DraftWithStatus.field_flags forward reference (FieldFlag defined above).
+DraftWithStatus.model_rebuild()
