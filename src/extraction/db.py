@@ -68,6 +68,24 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS config (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reference_documents (
+                id         TEXT PRIMARY KEY,
+                name       TEXT NOT NULL,
+                content    TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
 
 
 def save_draft(document_id: str, draft_json: str, created_at: str) -> None:
@@ -201,3 +219,54 @@ def iter_approvals_with_drafts() -> list[dict[str, Any]]:
             "FROM approvals a JOIN drafts d ON a.document_id = d.id"
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Pipeline configuration + reference documents (Feature 1a)
+# ---------------------------------------------------------------------------
+
+
+def get_config(key: str) -> str | None:
+    with _connect() as conn:
+        row = conn.execute("SELECT value FROM config WHERE key = ?", (key,)).fetchone()
+    return None if row is None else str(row["value"])
+
+
+def set_config(key: str, value: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO config (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+
+
+def add_reference_doc(doc_id: str, name: str, content: str, created_at: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO reference_documents (id, name, content, created_at) VALUES (?, ?, ?, ?)",
+            (doc_id, name, content, created_at),
+        )
+
+
+def list_reference_docs() -> list[dict[str, Any]]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, name, content, created_at FROM reference_documents ORDER BY created_at"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_reference_doc(doc_id: str) -> dict[str, Any] | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, name, content, created_at FROM reference_documents WHERE id = ?",
+            (doc_id,),
+        ).fetchone()
+    return None if row is None else dict(row)
+
+
+def delete_reference_doc(doc_id: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM reference_documents WHERE id = ?", (doc_id,))
+        return cur.rowcount > 0

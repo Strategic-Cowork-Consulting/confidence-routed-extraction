@@ -164,3 +164,30 @@ class FieldFlag(BaseModel):
 
 # Resolve DraftWithStatus.field_flags forward reference (FieldFlag defined above).
 DraftWithStatus.model_rebuild()
+
+
+# ---------------------------------------------------------------------------
+# Pipeline configuration (Feature 1a)
+# ---------------------------------------------------------------------------
+
+
+class PersonaConfig(BaseModel):
+    """The active analyst persona (response, and PUT request body)."""
+
+    persona: str
+
+
+class ReferenceDocCreate(BaseModel):
+    """Request body for saving a reference document."""
+
+    name: str
+    content: str
+
+
+class ReferenceDoc(BaseModel):
+    """A saved reference document the AI draws on during extraction."""
+
+    id: str
+    name: str
+    content: str
+    created_at: datetime
