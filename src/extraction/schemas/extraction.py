@@ -68,3 +68,23 @@ class ApprovalResult(BaseModel):
     document_id: str
     approved_at: datetime
     touch_summary: TouchSummary
+
+
+# ---------------------------------------------------------------------------
+# Edit capture / reliability observations (Feature 2a)
+# ---------------------------------------------------------------------------
+
+
+class FieldObservation(BaseModel):
+    """One per-field touch outcome for an approved document.
+
+    The flattened, grouping-key-tagged unit the reliability model (Feature 2b)
+    aggregates over. `touched` is copied verbatim from `core.diff.compute_touches`;
+    2a never recomputes it.
+    """
+
+    document_id: str
+    field_name: str
+    document_type: str  # "unknown" when the source document can't be resolved
+    touched: bool
+    approved_at: datetime

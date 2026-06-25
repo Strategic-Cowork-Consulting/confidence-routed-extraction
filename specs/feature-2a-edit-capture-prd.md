@@ -32,7 +32,7 @@ This directly serves the Vision Brief's core loop ("every approved document's di
 4. `AC-1.4` `[MUST]` `document_type` is derived by mapping the field's `source_document` to the matching `DocumentResult.filename` in the draft and reading that document's `document_type`.
 5. `AC-1.5` `[MUST]` If a field's `source_document` matches no `DocumentResult` (or is empty), `document_type` is recorded as the literal `"unknown"` — the observation is still written, never dropped.
 6. `AC-1.6` `[MUST]` Observation construction lives in `core/` as a pure function — no FastAPI, no `sqlite3` — taking the draft + computed touch record and returning a list of observation objects.
-7. `AC-1.7` `[MUST]` Capture and the approval write happen in **one transaction** — a single `db.save_approval(...)` call persists the approval row and all its observations together, so an approval can never exist without its matching observations (and vice versa).
+7. `AC-1.7` `[MUST]` Capture and the approval write happen in **one transaction** — a single `db.save_approval(...)` call persists the approval row and all its observations together, so an approval can never exist without its matching observations (and vice versa). **Deliberate consequence:** if the observation write fails, the approval write rolls back with it and the approve request fails (HTTP 500); the reviewer's approval is **not** persisted and must be resubmitted. Accepted POC trade-off — integrity of the training signal over approval durability.
 
 ### US-2 — Backfill observations from existing approvals
 **As a** reliability pipeline, **I want** to derive observations from approvals that were recorded before 2a existed, **so that** already-approved documents contribute to the model from day one.
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS field_observations (
 - **Performance:** `NFR-1` `[MUST]` Capture adds under 50ms to the approval request for a typical draft (≤ ~50 fields) — pure local DB writes, no Claude calls.
 - **Correctness:** `NFR-2` `[MUST]` For any approval, the multiset of `(field_name, touched)` in `field_observations` exactly matches the approval's stored `touch_json`. Verified by comparing the two for a sample approval.
 - **Idempotency:** `NFR-3` `[MUST]` Running capture or backfill twice over the same approval yields the same rows and the same row count (no duplicates, no errors).
-- **Reliability:** `NFR-4` `[SHOULD]` If observation writing fails, the failure is surfaced (logged + error) and does not leave an approval with a *partial* set of observations — capture is all-or-nothing per document.
+- **Reliability:** `NFR-4` `[MUST]` An observation-write failure rolls back the **entire** approval transaction (approval row + observations) and surfaces as HTTP 500 — no partial state is persisted, and the reviewer resubmits. Deliberate (see AC-1.7): for this POC we prefer losing an approval over recording one whose training signal didn't persist.
 
 ---
 
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS field_observations (
 | `ERR-1` | A field's `source_document` matches no `DocumentResult` (or is empty) | Observation written with `document_type = "unknown"`; nothing dropped | `[MUST]` |
 | `ERR-2` | Capture runs for a `document_id` that already has observations | No-op / no duplicates (idempotent insert); no error raised | `[MUST]` |
 | `ERR-3` | Backfill encounters an approval whose draft can't be loaded | Skip that approval, record it in the backfill report, continue; do not abort the whole run | `[MUST]` |
-| `ERR-4` | Observation write fails mid-document (DB error) | Surface error; no partial observation set persisted for that document | `[SHOULD]` |
+| `ERR-4` | Observation / DB write fails during an approval | **Atomic rollback** — approval row and observations both roll back; nothing persisted; request returns HTTP 500; reviewer resubmits | `[MUST]` |
 
 ---
 
@@ -223,3 +223,4 @@ _All resolved 2026-06-25 at spec time._
 |------|--------|--------|
 | 2026-06-25 | Initial draft | Eric Rooney / Claude |
 | 2026-06-25 | Fold in planning decisions: AC-1.7 → MUST atomic (combined `save_approval` transaction); backfill pinned to `src/extraction/backfill.py` | Eric Rooney / Claude |
+| 2026-06-25 | Document atomic-rollback behavior explicitly (AC-1.7 / NFR-4 / ERR-4): observation-write failure rolls back the approval and returns HTTP 500. **Process note:** sequential→atomic was a deviation from the approved (sequential) plan, flagged late; reviewed and accepted by Eric, kept for cleanliness. | Eric Rooney / Claude |

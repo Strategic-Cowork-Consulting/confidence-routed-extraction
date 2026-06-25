@@ -43,10 +43,12 @@ confidence-routed-extraction/
 │       ├── core/           # Business logic (no framework deps)
 │       │   ├── pipeline.py     # Draft → review → approval flow
 │       │   ├── diff.py         # Touch detection
-│       │   └── reliability.py  # Per-field reliability model
+│       │   ├── observations.py # Per-field touch observations (Feature 2a)
+│       │   └── reliability.py  # Per-field reliability model (Feature 2b — not built)
 │       ├── schemas/        # Pydantic request/response schemas
 │       ├── tasks/          # ARQ background tasks (Epic 2)
-│       └── db.py           # All sqlite3 access in one place
+│       ├── backfill.py     # Derive observations for pre-2a approvals (Feature 2a)
+│       └── db.py           # All sqlite3 access (drafts, approvals, field_observations)
 └── tests/
     ├── unit/
     └── integration/
