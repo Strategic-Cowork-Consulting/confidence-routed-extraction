@@ -50,6 +50,18 @@ The training labels are free: they're the reviewer's normal edits. The more docu
 - **Reliability is derived on read** from the captured observations — always current, no separate model store.
 - **Safe default everywhere:** any field-group the system hasn't proven yet (too few samples, or never seen) routes to **mandatory review** — it never inherits another field's reliability. This is the cold-start / overfitting guard.
 
+## Design decisions
+
+A few non-obvious choices shaped this system. The reasoning for each is captured in the PRDs and decision records under [`/specs`](specs/).
+
+**Correction history, not model self-confidence.** The obvious way to find unreliable fields is to ask the model how sure it is. That does not work — models report high confidence on wrong answers just as readily as on right ones. This system ignores self-reported confidence entirely. The signal is whether a human actually had to correct the field during normal review: measured reality, not the model's opinion of itself. The training labels are free, because they are the edits reviewers were already making.
+
+**Unproven field-groups always route to mandatory review.** Any field-group the system has not yet seen enough of — too few samples, or a document type it has never encountered — routes to mandatory review by default. It never inherits another field's reliability score. This is a deliberate guard against overfitting: a new document type or country earns its reliability from its own history rather than borrowing a score that may not apply.
+
+**Grouping granularity is a tunable tradeoff.** Reliability is tracked per `field × document_type`. Group too coarsely (just `field`) and a field that is hard on one document type but easy on another gets averaged into noise. Group too finely (field × type × source × language) and no bucket ever accumulates enough samples to learn anything. The grouping key is configurable; the default balances signal against sample density.
+
+**Validated against real documents, not just tests.** Running the pipeline on real transcripts surfaced a bug the unit tests could not: the model was silently misclassifying a document type, which would have fragmented the reliability buckets so none ever crossed the sample threshold — the learning loop would have looked like it was working while learning nothing. Caught and fixed before it could corrupt the signal. The lesson: a learning system has to be tested against reality, because its failure mode is silent.
+
 ## Quickstart
 
 Requires Python 3.12 and an Anthropic API key.
@@ -112,6 +124,10 @@ pytest
 pyright src/
 ruff check src/ tests/
 ```
+
+## How it was built
+
+Built as the capstone for an agentic-AI engineering course, using a spec-first workflow: every feature was specified in a PRD, tracked as a GitHub issue, and shipped through a reviewed pull request. The full set of specs and design-decision records lives in [`/specs`](specs/) — they document the reasoning behind each decision, not just the final code.
 
 ## Scope
 
