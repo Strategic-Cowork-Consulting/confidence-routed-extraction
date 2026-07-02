@@ -28,49 +28,49 @@ def _draft(
 
 def test_one_observation_per_field() -> None:
     draft = _draft(
-        {"gpa": _fv("3.8", "t.pdf"), "name": _fv("Jane", "t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"assessed_value": _fv("412000", "t.pdf"), "owner_name": _fv("Acme LLC", "t.pdf")},
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
-    obs = build_observations(draft, {"gpa": True, "name": False}, _AT)
-    assert {o.field_name for o in obs} == {"gpa", "name"}
+    obs = build_observations(draft, {"assessed_value": True, "owner_name": False}, _AT)
+    assert {o.field_name for o in obs} == {"assessed_value", "owner_name"}
     assert len(obs) == 2
 
 
 def test_document_type_resolved_from_source() -> None:
     draft = _draft(
-        {"gpa": _fv("3.8", "t.pdf"), "degree": _fv("BSc", "d.pdf")},
+        {"assessed_value": _fv("412000", "t.pdf"), "tax_class": _fv("1", "d.pdf")},
         [
-            DocumentResult(filename="t.pdf", document_type="transcript"),
-            DocumentResult(filename="d.pdf", document_type="diploma"),
+            DocumentResult(filename="t.pdf", document_type="invoice"),
+            DocumentResult(filename="d.pdf", document_type="receipt"),
         ],
     )
-    obs = {o.field_name: o for o in build_observations(draft, {"gpa": False, "degree": False}, _AT)}
-    assert obs["gpa"].document_type == "transcript"
-    assert obs["degree"].document_type == "diploma"
+    obs = {o.field_name: o for o in build_observations(draft, {"assessed_value": False, "tax_class": False}, _AT)}
+    assert obs["assessed_value"].document_type == "invoice"
+    assert obs["tax_class"].document_type == "receipt"
 
 
 def test_empty_source_is_unknown() -> None:
     draft = _draft(
-        {"abstract": _fv(None, "", not_found=True)},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"exemptions": _fv(None, "", not_found=True)},
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
-    obs = build_observations(draft, {"abstract": True}, _AT)
+    obs = build_observations(draft, {"exemptions": True}, _AT)
     assert obs[0].document_type == "unknown"
 
 
 def test_unmatched_source_is_unknown() -> None:
     draft = _draft(
-        {"gpa": _fv("3.8", "ghost.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"assessed_value": _fv("412000", "ghost.pdf")},
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
-    obs = build_observations(draft, {"gpa": False}, _AT)
+    obs = build_observations(draft, {"assessed_value": False}, _AT)
     assert obs[0].document_type == "unknown"
 
 
 def test_touched_copied_verbatim() -> None:
     draft = _draft(
         {"a": _fv("1", "t.pdf"), "b": _fv("2", "t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
     touches = {"a": True, "b": False}
     obs = {o.field_name: o.touched for o in build_observations(draft, touches, _AT)}
@@ -80,7 +80,7 @@ def test_touched_copied_verbatim() -> None:
 def test_carries_document_id_and_timestamp() -> None:
     draft = _draft(
         {"a": _fv("1", "t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
         document_id="doc-42",
     )
     obs = build_observations(draft, {"a": False}, _AT)

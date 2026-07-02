@@ -43,16 +43,16 @@ def _approve(client: TestClient, document_id: str, fields: dict[str, str | None]
 def test_capture_writes_one_row_per_field(client: TestClient) -> None:
     _seed_draft(
         "doc-1",
-        {"gpa": _fv("3.8", "t.pdf"), "name": _fv("Jane", "t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"assessed_value": _fv("412000", "t.pdf"), "owner_name": _fv("Acme Holdings LLC", "t.pdf")},
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
-    _approve(client, "doc-1", {"gpa": "3.9", "name": "Jane"})
+    _approve(client, "doc-1", {"assessed_value": "415000", "owner_name": "Acme Holdings LLC"})
 
     obs = {o["field_name"]: o for o in db.get_observations()}
-    assert set(obs) == {"gpa", "name"}
-    assert obs["gpa"]["document_type"] == "transcript"
-    assert obs["gpa"]["touched"] == 1  # changed
-    assert obs["name"]["touched"] == 0  # untouched
+    assert set(obs) == {"assessed_value", "owner_name"}
+    assert obs["assessed_value"]["document_type"] == "invoice"
+    assert obs["assessed_value"]["touched"] == 1  # changed
+    assert obs["owner_name"]["touched"] == 0  # untouched
 
 
 def test_observation_write_failure_rolls_back_approval(
@@ -62,8 +62,8 @@ def test_observation_write_failure_rolls_back_approval(
     whole approval and returns HTTP 500; nothing is persisted."""
     _seed_draft(
         "doc-x",
-        {"gpa": _fv("3.8", "t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"assessed_value": _fv("412000", "t.pdf")},
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
 
     # Force the observation-row build to raise inside save_approval's transaction,
@@ -75,7 +75,7 @@ def test_observation_write_failure_rolls_back_approval(
 
     with TestClient(app, raise_server_exceptions=False) as failing_client:
         resp = failing_client.post(
-            "/api/v1/review/doc-x/approve", json={"fields": {"gpa": "3.9"}}
+            "/api/v1/review/doc-x/approve", json={"fields": {"assessed_value": "415000"}}
         )
 
     assert resp.status_code == 500
@@ -85,17 +85,17 @@ def test_observation_write_failure_rolls_back_approval(
 
 
 def test_unknown_document_type_still_captured(client: TestClient) -> None:
-    # 'abstract' has no source document (not found in any doc) -> document_type "unknown"
+    # 'exemptions' has no source document (not found in any doc) -> document_type "unknown"
     _seed_draft(
         "doc-2",
-        {"title": _fv("Survey", "p.pdf"), "abstract": _fv(None, "", not_found=True)},
-        [DocumentResult(filename="p.pdf", document_type="scientific_paper")],
+        {"owner_name": _fv("Acme Holdings LLC", "p.pdf"), "exemptions": _fv(None, "", not_found=True)},
+        [DocumentResult(filename="p.pdf", document_type="report")],
     )
-    _approve(client, "doc-2", {"title": "Survey", "abstract": "Now filled in"})
+    _approve(client, "doc-2", {"owner_name": "Acme Holdings LLC", "exemptions": "Now filled in"})
 
     obs = {o["field_name"]: o for o in db.get_observations()}
-    assert obs["abstract"]["document_type"] == "unknown"
-    assert obs["abstract"]["touched"] == 1  # addition counts as touched
+    assert obs["exemptions"]["document_type"] == "unknown"
+    assert obs["exemptions"]["touched"] == 1  # addition counts as touched
 
 
 def test_observations_match_stored_touch_json(client: TestClient) -> None:
@@ -103,7 +103,7 @@ def test_observations_match_stored_touch_json(client: TestClient) -> None:
     _seed_draft(
         "doc-3",
         {"a": _fv("1", "t.pdf"), "b": _fv("2", "t.pdf"), "c": _fv("3", "t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
     _approve(client, "doc-3", {"a": "1", "b": "CHANGED", "c": "3"})
 
@@ -124,50 +124,50 @@ def test_observations_match_stored_touch_json(client: TestClient) -> None:
 def test_bucket_counts_group_by_field_and_doc_type(client: TestClient) -> None:
     _seed_draft(
         "t-1",
-        {"name": _fv("Jane", "t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"owner_name": _fv("Acme Holdings LLC", "t.pdf")},
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
     _seed_draft(
         "t-2",
-        {"name": _fv("John", "t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"owner_name": _fv("Beta Corp", "t.pdf")},
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
     _seed_draft(
         "d-1",
-        {"name": _fv("Sue", "d.pdf")},
-        [DocumentResult(filename="d.pdf", document_type="diploma")],
+        {"owner_name": _fv("Gamma Trust", "d.pdf")},
+        [DocumentResult(filename="d.pdf", document_type="receipt")],
     )
-    _approve(client, "t-1", {"name": "Jane CHANGED"})  # touched
-    _approve(client, "t-2", {"name": "John"})  # untouched
-    _approve(client, "d-1", {"name": "Sue"})  # untouched
+    _approve(client, "t-1", {"owner_name": "Acme Holdings LLC CHANGED"})  # touched
+    _approve(client, "t-2", {"owner_name": "Beta Corp"})  # untouched
+    _approve(client, "d-1", {"owner_name": "Gamma Trust"})  # untouched
 
     buckets = {
         (b["field_name"], b["document_type"]): b
         for b in db.get_bucket_counts(("field_name", "document_type"))
     }
-    assert buckets[("name", "transcript")]["samples"] == 2
-    assert buckets[("name", "transcript")]["touched"] == 1
-    assert buckets[("name", "diploma")]["samples"] == 1
-    assert buckets[("name", "diploma")]["touched"] == 0
+    assert buckets[("owner_name", "invoice")]["samples"] == 2
+    assert buckets[("owner_name", "invoice")]["touched"] == 1
+    assert buckets[("owner_name", "receipt")]["samples"] == 1
+    assert buckets[("owner_name", "receipt")]["touched"] == 0
 
 
 def test_get_observations_filters_by_document_type(client: TestClient) -> None:
     _seed_draft(
         "t-1",
-        {"name": _fv("Jane", "t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"owner_name": _fv("Acme Holdings LLC", "t.pdf")},
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
     _seed_draft(
         "d-1",
-        {"name": _fv("Sue", "d.pdf")},
-        [DocumentResult(filename="d.pdf", document_type="diploma")],
+        {"owner_name": _fv("Gamma Trust", "d.pdf")},
+        [DocumentResult(filename="d.pdf", document_type="receipt")],
     )
-    _approve(client, "t-1", {"name": "Jane"})
-    _approve(client, "d-1", {"name": "Sue"})
+    _approve(client, "t-1", {"owner_name": "Acme Holdings LLC"})
+    _approve(client, "d-1", {"owner_name": "Gamma Trust"})
 
-    only_transcript = db.get_observations(document_type="transcript")
-    assert len(only_transcript) == 1
-    assert only_transcript[0]["document_id"] == "t-1"
+    only_invoice = db.get_observations(document_type="invoice")
+    assert len(only_invoice) == 1
+    assert only_invoice[0]["document_id"] == "t-1"
 
 
 # ---------------------------------------------------------------------------
@@ -181,21 +181,21 @@ def _seed_pre2a_approval(document_id: str, doc_type: str, touched: bool) -> None
 
     _seed_draft(
         document_id,
-        {"name": _fv("X", "f.pdf")},
+        {"owner_name": _fv("X", "f.pdf")},
         [DocumentResult(filename="f.pdf", document_type=doc_type)],
     )
     db.save_approval(
         document_id=document_id,
-        approved_json=json.dumps({"name": "X CHANGED" if touched else "X"}),
-        touch_json=json.dumps({"name": touched}),
+        approved_json=json.dumps({"owner_name": "X CHANGED" if touched else "X"}),
+        touch_json=json.dumps({"owner_name": touched}),
         approved_at=_AT.isoformat(),
         observations=[],  # pre-2a: none captured
     )
 
 
 def test_backfill_populates_then_is_idempotent(tmp_db: object) -> None:
-    _seed_pre2a_approval("old-1", "transcript", touched=True)
-    _seed_pre2a_approval("old-2", "diploma", touched=False)
+    _seed_pre2a_approval("old-1", "invoice", touched=True)
+    _seed_pre2a_approval("old-2", "receipt", touched=False)
     assert db.get_observations() == []  # nothing captured yet
 
     first = run_backfill()
@@ -210,7 +210,7 @@ def test_backfill_populates_then_is_idempotent(tmp_db: object) -> None:
 def test_backfill_skips_unrebuildable_draft(tmp_db: object) -> None:
     import json
 
-    _seed_pre2a_approval("good", "transcript", touched=True)
+    _seed_pre2a_approval("good", "invoice", touched=True)
     # An approval whose draft JSON can't validate into a DocumentDraft.
     db.save_draft("bad", json.dumps({"not": "a draft"}), _AT.isoformat())
     db.save_approval(

@@ -19,9 +19,9 @@ def test_get_persona_returns_default_when_unset(client: TestClient) -> None:
 
 
 def test_set_then_get_persona(client: TestClient) -> None:
-    put = client.put("/api/v1/config/persona", json={"persona": "You are a registrar."})
+    put = client.put("/api/v1/config/persona", json={"persona": "You are a tax assessor."})
     assert put.status_code == 200
-    assert client.get("/api/v1/config/persona").json()["persona"] == "You are a registrar."
+    assert client.get("/api/v1/config/persona").json()["persona"] == "You are a tax assessor."
 
 
 def test_empty_persona_rejected(client: TestClient) -> None:
@@ -35,7 +35,7 @@ def test_empty_persona_rejected(client: TestClient) -> None:
 
 def test_reference_doc_crud(client: TestClient) -> None:
     created = client.post(
-        "/api/v1/reference-docs", json={"name": "Grading guide", "content": "GPA is 0-4."}
+        "/api/v1/reference-docs", json={"name": "Assessment guide", "content": "Tax class is 1-4."}
     )
     assert created.status_code == 200
     doc_id = created.json()["id"]
@@ -43,7 +43,7 @@ def test_reference_doc_crud(client: TestClient) -> None:
     assert any(d["id"] == doc_id for d in client.get("/api/v1/reference-docs").json())
     got = client.get(f"/api/v1/reference-docs/{doc_id}")
     assert got.status_code == 200
-    assert got.json()["content"] == "GPA is 0-4."
+    assert got.json()["content"] == "Tax class is 1-4."
 
     assert client.delete(f"/api/v1/reference-docs/{doc_id}").status_code == 200
     assert client.get(f"/api/v1/reference-docs/{doc_id}").status_code == 404
@@ -86,17 +86,17 @@ def test_draft_uses_persona_and_reference_docs(
         "extraction.api.routers.extraction.run_extraction", fake_run_extraction
     )
 
-    client.put("/api/v1/config/persona", json={"persona": "You are a registrar."})
-    client.post("/api/v1/reference-docs", json={"name": "Guide", "content": "GPA scale 0-4."})
+    client.put("/api/v1/config/persona", json={"persona": "You are a tax assessor."})
+    client.post("/api/v1/reference-docs", json={"name": "Guide", "content": "Assessed values are in USD."})
 
     resp = client.post(
         "/api/v1/extraction/draft",
-        files={"documents": ("t.txt", b"Transcript text", "text/plain")},
-        data={"field_schema": '[{"name": "gpa"}]'},
+        files={"documents": ("t.txt", b"Invoice text", "text/plain")},
+        data={"field_schema": '[{"name": "assessed_value"}]'},
     )
     assert resp.status_code == 200
 
     persona = captured["persona"]
     assert persona is not None
-    assert persona.startswith("You are a registrar.")
-    assert "GPA scale 0-4." in persona  # reference content folded in
+    assert persona.startswith("You are a tax assessor.")
+    assert "Assessed values are in USD." in persona  # reference content folded in
