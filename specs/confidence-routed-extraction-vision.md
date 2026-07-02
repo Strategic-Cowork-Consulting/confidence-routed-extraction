@@ -8,7 +8,7 @@
 
 ## The Problem
 
-AI-assisted document field mapping produces errors in 2–20% of fields per document — and essentially never comes back 100% accurate on a first draft. Error rates spike further for document types not yet represented in the system's reference data (cold-start problem). Specialist reviewers currently have no way to know *which* fields are systematically unreliable, so every field gets the same level of scrutiny. A reviewer spends 5–10 minutes per document on corrections under normal conditions; significantly more when a draft is badly wrong. Impact not yet precisely quantified — reviewers currently number ~10, down from 20–40 pre-AI, so throughput is high but reviewer time is the remaining constraint.
+AI-assisted document field mapping produces errors in 2–20% of fields per document — and essentially never comes back 100% accurate on a first draft. Error rates spike further for document types not yet represented in the system's reference data (cold-start problem). Specialist reviewers currently have no way to know *which* fields are systematically unreliable, so every field gets the same level of scrutiny. A reviewer spends 5–10 minutes per document on corrections under normal conditions; significantly more when a draft is badly wrong. With a lean review team, reviewer time is the remaining constraint on throughput.
 
 ---
 
@@ -28,7 +28,7 @@ Specialist reviewers — domain experts with a couple of years of training — w
 
 ## Current State
 
-Reviewers use a side-by-side web interface: source documents on the left, AI-generated draft on the right. They edit inline and mark the document done. The system is currently in TEST. Informally, the same few fields tend to be wrong repeatedly — but there's no systematic record of which ones, and no mechanism to flag them for special attention.
+Reviewers use a side-by-side web interface: source documents on the left, AI-generated draft on the right. They edit inline and mark the document done. Informally, the same few fields tend to be wrong repeatedly — but there's no systematic record of which ones, and no mechanism to flag them for special attention.
 
 ---
 
@@ -42,7 +42,7 @@ Reviewers use a side-by-side web interface: source documents on the left, AI-gen
 
 ## Strategic Context
 
-Productivity improvement is the target for this year. AI already cut the reviewer headcount from 20–40 down to ~10. The next lever is making the remaining reviewers faster and more accurate — by directing their attention to the fields that actually need it, rather than asking them to re-examine everything equally.
+Productivity improvement is the goal. With AI already handling the bulk of extraction, the next lever is making review faster and more accurate — by directing reviewer attention to the fields that actually need it, rather than asking them to re-examine everything equally.
 
 ---
 
