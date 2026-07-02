@@ -17,14 +17,14 @@ def test_normalize_keeps_valid_types() -> None:
 
 
 def test_normalize_coerces_offlist_to_unknown() -> None:
-    assert _normalize_document_type("academic_record") == "unknown"
+    assert _normalize_document_type("spreadsheet") == "unknown"
     assert _normalize_document_type("") == "unknown"
     assert _normalize_document_type(None) == "unknown"
     assert _normalize_document_type(123) == "unknown"
 
 
 def test_tool_schema_constrains_document_type_to_enum() -> None:
-    tool = _build_extraction_tool([FieldSchemaItem(name="gpa")])
+    tool = _build_extraction_tool([FieldSchemaItem(name="assessed_value")])
     enum = tool["input_schema"]["properties"]["document_type"]["enum"]
     assert "transcript" in enum
     assert set(enum) == set(DOCUMENT_TYPES)

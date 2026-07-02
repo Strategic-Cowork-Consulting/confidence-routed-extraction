@@ -10,20 +10,20 @@ def _fv(value: str | None, *, not_found: bool = False) -> FieldValue:
 
 
 ORIGINAL: dict[str, FieldValue] = {
-    "title": _fv("Deep Learning Survey"),
-    "authors": _fv("Smith et al."),
-    "abstract": _fv(None, not_found=True),
-    "date": _fv("2023"),
+    "owner_name": _fv("Acme Holdings LLC"),
+    "mailing_address": _fv("100 Main St"),
+    "exemptions": _fv(None, not_found=True),
+    "bill_date": _fv("2024-01-15"),
 }
 
 
 def _approved(**overrides: str | None) -> dict[str, str | None]:
     """Return base approved values with optional field overrides."""
     base: dict[str, str | None] = {
-        "title": "Deep Learning Survey",
-        "authors": "Smith et al.",
-        "abstract": None,
-        "date": "2023",
+        "owner_name": "Acme Holdings LLC",
+        "mailing_address": "100 Main St",
+        "exemptions": None,
+        "bill_date": "2024-01-15",
     }
     base.update(overrides)
     return base
@@ -36,22 +36,27 @@ def _approved(**overrides: str | None) -> dict[str, str | None]:
 
 def test_identical_values_not_touched() -> None:
     result = compute_touches(ORIGINAL, _approved())
-    assert result == {"title": False, "authors": False, "abstract": False, "date": False}
+    assert result == {
+        "owner_name": False,
+        "mailing_address": False,
+        "exemptions": False,
+        "bill_date": False,
+    }
 
 
 def test_leading_trailing_whitespace_not_touched() -> None:
-    result = compute_touches(ORIGINAL, _approved(title="  Deep Learning Survey  "))
-    assert result["title"] is False
+    result = compute_touches(ORIGINAL, _approved(owner_name="  Acme Holdings LLC  "))
+    assert result["owner_name"] is False
 
 
 def test_internal_whitespace_collapse_not_touched() -> None:
-    result = compute_touches(ORIGINAL, _approved(title="Deep  Learning   Survey"))
-    assert result["title"] is False
+    result = compute_touches(ORIGINAL, _approved(owner_name="Acme  Holdings   LLC"))
+    assert result["owner_name"] is False
 
 
 def test_null_to_null_not_touched() -> None:
     result = compute_touches(ORIGINAL, _approved())
-    assert result["abstract"] is False
+    assert result["exemptions"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -60,30 +65,30 @@ def test_null_to_null_not_touched() -> None:
 
 
 def test_changed_value_touched() -> None:
-    result = compute_touches(ORIGINAL, _approved(title="A Different Title"))
-    assert result["title"] is True
-    assert result["authors"] is False
+    result = compute_touches(ORIGINAL, _approved(owner_name="A Different Owner"))
+    assert result["owner_name"] is True
+    assert result["mailing_address"] is False
 
 
 def test_deletion_is_touched() -> None:
-    result = compute_touches(ORIGINAL, _approved(authors=None))
-    assert result["authors"] is True
+    result = compute_touches(ORIGINAL, _approved(mailing_address=None))
+    assert result["mailing_address"] is True
 
 
 def test_addition_into_blank_is_touched() -> None:
     approved = {
-        "title": "Deep Learning Survey",
-        "authors": "Smith et al.",
-        "abstract": "This paper surveys...",
-        "date": "2023",
+        "owner_name": "Acme Holdings LLC",
+        "mailing_address": "100 Main St",
+        "exemptions": "Senior exemption applied",
+        "bill_date": "2024-01-15",
     }
     result = compute_touches(ORIGINAL, approved)
-    assert result["abstract"] is True
+    assert result["exemptions"] is True
 
 
 def test_content_change_with_whitespace_still_touched() -> None:
-    result = compute_touches(ORIGINAL, _approved(title="Machine  Learning Survey"))
-    assert result["title"] is True
+    result = compute_touches(ORIGINAL, _approved(owner_name="Beta  Holdings LLC"))
+    assert result["owner_name"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -92,12 +97,15 @@ def test_content_change_with_whitespace_still_touched() -> None:
 
 
 def test_all_schema_fields_returned() -> None:
-    result = compute_touches(ORIGINAL, _approved(title="X", authors="Y", abstract="Z", date="W"))
-    assert set(result.keys()) == {"title", "authors", "abstract", "date"}
+    result = compute_touches(
+        ORIGINAL,
+        _approved(owner_name="X", mailing_address="Y", exemptions="Z", bill_date="W"),
+    )
+    assert set(result.keys()) == {"owner_name", "mailing_address", "exemptions", "bill_date"}
 
 
 def test_missing_key_in_approved_treated_as_none() -> None:
     # If approved_values is missing a key entirely, .get() returns None → treated as empty
-    original = {"title": _fv("Something")}
+    original = {"owner_name": _fv("Something")}
     result = compute_touches(original, {})  # empty approved dict
-    assert result["title"] is True  # "Something" != "" → touched
+    assert result["owner_name"] is True  # "Something" != "" → touched
