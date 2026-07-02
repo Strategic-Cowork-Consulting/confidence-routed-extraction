@@ -28,7 +28,7 @@ Current alternative is manual Claude chat: it can produce a draft but is slow, n
 **Acceptance Criteria:**
 1. `[MUST]` API accepts one or more source documents per request (PDF, PNG, JPG, plain text)
 2. `[MUST]` API accepts a field schema — a list of named fields with optional descriptions — that defines what to extract
-3. `[MUST]` API accepts an analyst persona prompt that configures extraction behavior (e.g., "You are a paralegal specializing in immigration documents")
+3. `[MUST]` API accepts an analyst persona prompt that configures extraction behavior (e.g., "You are a financial analyst specializing in invoices and contracts")
 4. `[MUST]` Response returns a JSON draft where every field in the schema is present, with either an extracted value or an explicit `null` + `not_found: true` flag — no fields are silently omitted
 5. `[MUST]` Response includes a unique `document_id` that is a **real persistence key** referencing the stored draft — usable to fetch the original draft at review/approval time
 6. `[MUST]` Each extracted field records which source document it was drawn from (by filename or index)

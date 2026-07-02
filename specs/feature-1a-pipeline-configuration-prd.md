@@ -12,7 +12,7 @@ Let an operator configure the extraction pipeline without code changes — set a
 ---
 
 ## Motivation
-The pipeline is meant to be generic: *"the system is told what kind of analyst it is, making it domain-agnostic without code changes"* (Vision Brief capability #1). Today the analyst persona is a hard-coded `DEFAULT_PERSONA` in `pipeline.py`, overridable only per-request — there's no way to set "this deployment extracts legal documents as a paralegal" once and have every draft use it. And there's no way to give the model **reference material** to draw on (capability #2) — the operator can't save example documents or domain notes that improve extraction.
+The pipeline is meant to be generic: *"the system is told what kind of analyst it is, making it domain-agnostic without code changes"* (Vision Brief capability #1). Today the analyst persona is a hard-coded `DEFAULT_PERSONA` in `pipeline.py`, overridable only per-request — there's no way to set "this deployment extracts financial documents as an invoicing analyst" once and have every draft use it. And there's no way to give the model **reference material** to draw on (capability #2) — the operator can't save example documents or domain notes that improve extraction.
 
 Feature 1a closes both gaps with a small configuration layer: a persisted persona and a managed set of reference documents, both injected into extraction. It's the last MVP feature of Epic 1 — deferred until the riskier extraction/review/reliability path was proven, now added to make the pipeline genuinely reusable across domains.
 
@@ -170,7 +170,7 @@ A small config layer in front of the existing extraction path:
 6. `POST` missing content → 422; content > 50 KB → 422. _(AC-2.5, ERR-2, ERR-3)_
 
 ### Extraction composition (pure)
-7. `compose_persona("You are a paralegal.", [ref])` returns a string containing the persona and the reference content, clearly delimited. _(AC-3.1, AC-3.3)_
+7. `compose_persona("You are a document analyst.", [ref])` returns a string containing the persona and the reference content, clearly delimited. _(AC-3.1, AC-3.3)_
 8. `compose_persona(None, [])` returns `None` (extraction falls back to `DEFAULT_PERSONA`). _(AC-3.2, NFR-3)_
 9. With a configured persona + one reference doc, a draft request builds an effective system prompt containing both (verified at the router/compose boundary without a live Claude call). _(AC-1.4, AC-G.2)_
 
