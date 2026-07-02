@@ -2,21 +2,21 @@
 
 An AI document-extraction pipeline that **learns which fields it gets wrong from reviewers' normal edits — and routes human attention to exactly those fields.**
 
-> **The result, in one sentence:** Trained on 5 transcripts, the system learned that **GPA** was the unreliable field — and then automatically flagged it for mandatory review on a **sixth, never-seen transcript**, while letting the reliably-extracted fields pass with light review. No model self-confidence, no separate annotation step — the signal comes entirely from the corrections reviewers were already making.
+> **The result, in one sentence:** Trained on 5 NYC property-tax bills, the system learned that **assessed value** was the unreliable field — and then automatically flagged it for mandatory review on a **sixth, never-seen bill**, while letting the reliably-extracted fields pass with light review. No model self-confidence, no separate annotation step — the signal comes entirely from the corrections reviewers were already making.
 
 ```
-GET /api/v1/reliability   (after 5 reviewed transcripts, GPA corrected on 4)
-  gpa              change_rate=0.80  ->  mandatory_review
-  degree           change_rate=0.00  ->  light_review
-  graduation_date  change_rate=0.00  ->  light_review
-  student_name     change_rate=0.00  ->  light_review
+GET /api/v1/reliability   (after 5 reviewed property-tax bills, assessed_value corrected on 4)
+  assessed_value     change_rate=0.80  ->  mandatory_review
+  owner_name         change_rate=0.00  ->  light_review
+  borough_block_lot  change_rate=0.00  ->  light_review
+  tax_class          change_rate=0.00  ->  light_review
 
-GET /api/v1/review/{fresh-transcript}   (never reviewed)
+GET /api/v1/review/{fresh-bill}   (never reviewed)
   flagged_count: 1/4
-    🚩 gpa              -> mandatory_review (high_change_rate)
-       student_name     -> light_review
-       degree           -> light_review
-       graduation_date  -> light_review
+    🚩 assessed_value     -> mandatory_review (high_change_rate)
+       owner_name         -> light_review
+       borough_block_lot  -> light_review
+       tax_class          -> light_review
 ```
 
 ---
@@ -60,7 +60,7 @@ A few non-obvious choices shaped this system. The reasoning for each is captured
 
 **Grouping granularity is a tunable tradeoff.** Reliability is tracked per `field × document_type`. Group too coarsely (just `field`) and a field that is hard on one document type but easy on another gets averaged into noise. Group too finely (field × type × source × language) and no bucket ever accumulates enough samples to learn anything. The grouping key is configurable; the default balances signal against sample density.
 
-**Validated against real documents, not just tests.** Running the pipeline on real transcripts surfaced a bug the unit tests could not: the model was silently misclassifying a document type, which would have fragmented the reliability buckets so none ever crossed the sample threshold — the learning loop would have looked like it was working while learning nothing. Caught and fixed before it could corrupt the signal. The lesson: a learning system has to be tested against reality, because its failure mode is silent.
+**Validated against real documents, not just tests.** Running the pipeline on real documents surfaced a bug the unit tests could not: the model was silently misclassifying a document type, which would have fragmented the reliability buckets so none ever crossed the sample threshold — the learning loop would have looked like it was working while learning nothing. Caught and fixed before it could corrupt the signal. The lesson: a learning system has to be tested against reality, because its failure mode is silent.
 
 ## Quickstart
 
