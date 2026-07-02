@@ -21,8 +21,8 @@ from extraction.schemas.extraction import FieldSchemaItem
 # ---------------------------------------------------------------------------
 
 _HTTP_REQUEST = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
-_SCHEMA = [FieldSchemaItem(name="title"), FieldSchemaItem(name="authors")]
-_PDF_DOCS: list[tuple[str, bytes, str]] = [("paper.pdf", b"fake pdf bytes", "application/pdf")]
+_SCHEMA = [FieldSchemaItem(name="owner_name"), FieldSchemaItem(name="mailing_address")]
+_PDF_DOCS: list[tuple[str, bytes, str]] = [("bill.pdf", b"fake pdf bytes", "application/pdf")]
 _TXT_DOCS: list[tuple[str, bytes, str]] = [("doc.txt", b"some text", "text/plain")]
 
 
@@ -48,29 +48,29 @@ def _mock_client(tool_input: dict[str, Any]) -> AsyncMock:
 
 async def test_successful_extraction_returns_draft():
     client = _mock_client({
-        "document_type": "scientific_paper",
+        "document_type": "report",
         "fields": {
-            "title": {"value": "Deep Learning Survey", "not_found": False},
-            "authors": {"value": "Smith et al.", "not_found": False},
+            "owner_name": {"value": "Acme Holdings LLC", "not_found": False},
+            "mailing_address": {"value": "100 Main St", "not_found": False},
         },
     })
     draft = await run_extraction(_TXT_DOCS, _SCHEMA, None, client)
 
-    assert draft.fields["title"].value == "Deep Learning Survey"
-    assert draft.fields["title"].source_document == "doc.txt"
-    assert draft.fields["title"].not_found is False
-    assert draft.fields["authors"].value == "Smith et al."
-    assert draft.documents[0].document_type == "scientific_paper"
+    assert draft.fields["owner_name"].value == "Acme Holdings LLC"
+    assert draft.fields["owner_name"].source_document == "doc.txt"
+    assert draft.fields["owner_name"].not_found is False
+    assert draft.fields["mailing_address"].value == "100 Main St"
+    assert draft.documents[0].document_type == "report"
     assert draft.documents[0].extraction_status == "ok"
     assert draft.document_id  # UUID present
 
 
 async def test_custom_persona_is_forwarded():
     client = _mock_client({
-        "document_type": "passport",
+        "document_type": "form",
         "fields": {
-            "title": {"value": "v", "not_found": False},
-            "authors": {"value": "v", "not_found": False},
+            "owner_name": {"value": "v", "not_found": False},
+            "mailing_address": {"value": "v", "not_found": False},
         },
     })
     await run_extraction(_TXT_DOCS, _SCHEMA, "Custom persona string", client)
@@ -84,8 +84,8 @@ async def test_default_persona_used_when_none():
     client = _mock_client({
         "document_type": "unknown",
         "fields": {
-            "title": {"value": None, "not_found": True},
-            "authors": {"value": None, "not_found": True},
+            "owner_name": {"value": None, "not_found": True},
+            "mailing_address": {"value": None, "not_found": True},
         },
     })
     await run_extraction(_TXT_DOCS, _SCHEMA, None, client)
@@ -100,17 +100,17 @@ async def test_default_persona_used_when_none():
 
 async def test_not_found_field():
     client = _mock_client({
-        "document_type": "passport",
+        "document_type": "form",
         "fields": {
-            "title": {"value": None, "not_found": True},
-            "authors": {"value": None, "not_found": True},
+            "owner_name": {"value": None, "not_found": True},
+            "mailing_address": {"value": None, "not_found": True},
         },
     })
     draft = await run_extraction(_PDF_DOCS, _SCHEMA, None, client)
 
-    assert draft.fields["title"].not_found is True
-    assert draft.fields["title"].value is None
-    assert draft.fields["title"].extraction_status == "ok"  # doc succeeded, field absent
+    assert draft.fields["owner_name"].not_found is True
+    assert draft.fields["owner_name"].value is None
+    assert draft.fields["owner_name"].extraction_status == "ok"  # doc succeeded, field absent
 
 
 # ---------------------------------------------------------------------------
@@ -130,16 +130,16 @@ async def test_first_non_not_found_wins_across_docs():
             tool_use.input = {
                 "document_type": "legal_document",
                 "fields": {
-                    "title": {"value": "First Title", "not_found": False},
-                    "authors": {"value": None, "not_found": True},
+                    "owner_name": {"value": "First Owner", "not_found": False},
+                    "mailing_address": {"value": None, "not_found": True},
                 },
             }
         else:
             tool_use.input = {
                 "document_type": "legal_document",
                 "fields": {
-                    "title": {"value": "Second Title", "not_found": False},
-                    "authors": {"value": "Author Two", "not_found": False},
+                    "owner_name": {"value": "Second Owner", "not_found": False},
+                    "mailing_address": {"value": "200 Oak Ave", "not_found": False},
                 },
             }
         msg = MagicMock()
@@ -156,11 +156,11 @@ async def test_first_non_not_found_wins_across_docs():
     ]
     draft = await run_extraction(docs, _SCHEMA, None, client)
 
-    assert draft.fields["title"].value == "First Title"
-    assert draft.fields["title"].source_document == "doc1.pdf"
+    assert draft.fields["owner_name"].value == "First Owner"
+    assert draft.fields["owner_name"].source_document == "doc1.pdf"
     # doc2 fills in where doc1 had not_found
-    assert draft.fields["authors"].value == "Author Two"
-    assert draft.fields["authors"].source_document == "doc2.pdf"
+    assert draft.fields["mailing_address"].value == "200 Oak Ave"
+    assert draft.fields["mailing_address"].source_document == "doc2.pdf"
 
 
 # ---------------------------------------------------------------------------
@@ -185,8 +185,8 @@ async def test_partial_failure_continues_with_remaining_docs():
         tool_use.input = {
             "document_type": "legal_document",
             "fields": {
-                "title": {"value": "Contract", "not_found": False},
-                "authors": {"value": "Jane Doe", "not_found": False},
+                "owner_name": {"value": "Acme Holdings LLC", "not_found": False},
+                "mailing_address": {"value": "100 Main St", "not_found": False},
             },
         }
         msg = MagicMock()
@@ -202,7 +202,7 @@ async def test_partial_failure_continues_with_remaining_docs():
 
     assert draft.documents[0].extraction_status == "failed"
     assert draft.documents[1].extraction_status == "ok"
-    assert draft.fields["title"].value == "Contract"
+    assert draft.fields["owner_name"].value == "Acme Holdings LLC"
 
 
 async def test_all_failed_raises_all_extractions_failed():

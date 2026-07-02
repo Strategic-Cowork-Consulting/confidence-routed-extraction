@@ -46,11 +46,11 @@ def _seed_obs(specs: list[tuple[str, str, int, int]]) -> None:
 
 
 def test_review_annotates_fields_with_flags(client: TestClient) -> None:
-    _seed_obs([("gpa", "transcript", 5, 3), ("degree", "transcript", 5, 0)])
+    _seed_obs([("assessed_value", "invoice", 5, 3), ("tax_class", "invoice", 5, 0)])
     _seed_draft(
         "doc-1",
-        {"gpa": _fv("t.pdf"), "degree": _fv("t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"assessed_value": _fv("t.pdf"), "tax_class": _fv("t.pdf")},
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
     r = client.get("/api/v1/review/doc-1")
     assert r.status_code == 200
@@ -58,40 +58,40 @@ def test_review_annotates_fields_with_flags(client: TestClient) -> None:
 
     # Backward-compatible: pre-2c fields still present (NFR-4, AC-G.3)
     assert body["approval_status"] == "pending"
-    assert set(body["fields"]) == {"gpa", "degree"}
+    assert set(body["fields"]) == {"assessed_value", "tax_class"}
 
     flags = body["field_flags"]
-    assert flags["gpa"]["flagged"] is True
-    assert flags["gpa"]["basis"] == "high_change_rate"
-    assert flags["degree"]["flagged"] is False
-    assert flags["degree"]["basis"] == "low_change_rate"
+    assert flags["assessed_value"]["flagged"] is True
+    assert flags["assessed_value"]["basis"] == "high_change_rate"
+    assert flags["tax_class"]["flagged"] is False
+    assert flags["tax_class"]["basis"] == "low_change_rate"
     assert body["flagged_count"] == 1
     assert body["total_fields"] == 2
 
 
 def test_each_field_flagged_by_its_own_document_type(client: TestClient) -> None:
-    # transcript/gpa reliable (light); diploma/seal unreliable (flagged)
-    _seed_obs([("gpa", "transcript", 5, 0), ("seal", "diploma", 5, 4)])
+    # invoice/assessed_value reliable (light); receipt/late_fee unreliable (flagged)
+    _seed_obs([("assessed_value", "invoice", 5, 0), ("late_fee", "receipt", 5, 4)])
     _seed_draft(
         "doc-2",
-        {"gpa": _fv("t.pdf"), "seal": _fv("d.pdf")},
+        {"assessed_value": _fv("t.pdf"), "late_fee": _fv("d.pdf")},
         [
-            DocumentResult(filename="t.pdf", document_type="transcript"),
-            DocumentResult(filename="d.pdf", document_type="diploma"),
+            DocumentResult(filename="t.pdf", document_type="invoice"),
+            DocumentResult(filename="d.pdf", document_type="receipt"),
         ],
     )
     flags = client.get("/api/v1/review/doc-2").json()["field_flags"]
-    assert flags["gpa"]["document_type"] == "transcript"
-    assert flags["gpa"]["flagged"] is False
-    assert flags["seal"]["document_type"] == "diploma"
-    assert flags["seal"]["flagged"] is True
+    assert flags["assessed_value"]["document_type"] == "invoice"
+    assert flags["assessed_value"]["flagged"] is False
+    assert flags["late_fee"]["document_type"] == "receipt"
+    assert flags["late_fee"]["flagged"] is True
 
 
 def test_empty_store_flags_every_field_unproven(client: TestClient) -> None:
     _seed_draft(
         "doc-3",
         {"a": _fv("t.pdf"), "b": _fv("t.pdf")},
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
     body = client.get("/api/v1/review/doc-3").json()
     assert body["flagged_count"] == 2
@@ -101,10 +101,10 @@ def test_empty_store_flags_every_field_unproven(client: TestClient) -> None:
 def test_unknown_document_type_field_is_flagged(client: TestClient) -> None:
     _seed_draft(
         "doc-4",
-        {"abstract": _fv("")},  # empty source -> document_type "unknown"
-        [DocumentResult(filename="t.pdf", document_type="transcript")],
+        {"exemptions": _fv("")},  # empty source -> document_type "unknown"
+        [DocumentResult(filename="t.pdf", document_type="invoice")],
     )
-    flag = client.get("/api/v1/review/doc-4").json()["field_flags"]["abstract"]
+    flag = client.get("/api/v1/review/doc-4").json()["field_flags"]["exemptions"]
     assert flag["document_type"] == "unknown"
     assert flag["flagged"] is True
     assert flag["basis"] == "unproven"

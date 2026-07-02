@@ -33,44 +33,44 @@ def _seed(specs: list[tuple[str, str, int, int]]) -> None:
 def test_reliability_endpoint_scores_and_routes(client: TestClient) -> None:
     _seed(
         [
-            ("gpa", "transcript", 5, 3),  # proven, rate 0.60 -> mandatory/high
-            ("degree", "transcript", 6, 0),  # proven, rate 0.00 -> light
-            ("name", "transcript", 3, 1),  # 3<5 -> unproven/mandatory
+            ("assessed_value", "invoice", 5, 3),  # proven, rate 0.60 -> mandatory/high
+            ("tax_class", "invoice", 6, 0),  # proven, rate 0.00 -> light
+            ("owner_name", "invoice", 3, 1),  # 3<5 -> unproven/mandatory
         ]
     )
     r = client.get("/api/v1/reliability")
     assert r.status_code == 200
     by = {s["field_name"]: s for s in r.json()}
 
-    assert by["gpa"]["routing"] == "mandatory_review"
-    assert by["gpa"]["basis"] == "high_change_rate"
-    assert by["gpa"]["change_rate"] == 0.6
-    assert by["degree"]["routing"] == "light_review"
-    assert by["degree"]["basis"] == "low_change_rate"
-    assert by["name"]["routing"] == "mandatory_review"
-    assert by["name"]["basis"] == "unproven"
-    assert by["name"]["proven"] is False
+    assert by["assessed_value"]["routing"] == "mandatory_review"
+    assert by["assessed_value"]["basis"] == "high_change_rate"
+    assert by["assessed_value"]["change_rate"] == 0.6
+    assert by["tax_class"]["routing"] == "light_review"
+    assert by["tax_class"]["basis"] == "low_change_rate"
+    assert by["owner_name"]["routing"] == "mandatory_review"
+    assert by["owner_name"]["basis"] == "unproven"
+    assert by["owner_name"]["proven"] is False
 
 
 def test_reliability_filter_by_document_type(client: TestClient) -> None:
-    _seed([("gpa", "transcript", 5, 1), ("gpa", "diploma", 5, 1)])
-    r = client.get("/api/v1/reliability", params={"document_type": "diploma"})
+    _seed([("assessed_value", "invoice", 5, 1), ("assessed_value", "receipt", 5, 1)])
+    r = client.get("/api/v1/reliability", params={"document_type": "receipt"})
     assert r.status_code == 200
     rows = r.json()
     assert len(rows) == 1
-    assert rows[0]["document_type"] == "diploma"
+    assert rows[0]["document_type"] == "receipt"
 
 
 def test_route_endpoint_for_known_bucket(client: TestClient) -> None:
-    _seed([("gpa", "transcript", 6, 0)])  # proven, rate 0 -> light
+    _seed([("assessed_value", "invoice", 6, 0)])  # proven, rate 0 -> light
     r = client.get(
         "/api/v1/reliability/route",
-        params={"field_name": "gpa", "document_type": "transcript"},
+        params={"field_name": "assessed_value", "document_type": "invoice"},
     )
     assert r.status_code == 200
     assert r.json() == {
-        "field_name": "gpa",
-        "document_type": "transcript",
+        "field_name": "assessed_value",
+        "document_type": "invoice",
         "routing": "light_review",
         "basis": "low_change_rate",
         "samples": 6,
@@ -78,10 +78,10 @@ def test_route_endpoint_for_known_bucket(client: TestClient) -> None:
 
 
 def test_route_endpoint_unseen_defaults_mandatory(client: TestClient) -> None:
-    _seed([("gpa", "transcript", 6, 0)])
+    _seed([("assessed_value", "invoice", 6, 0)])
     r = client.get(
         "/api/v1/reliability/route",
-        params={"field_name": "ghost", "document_type": "passport"},
+        params={"field_name": "ghost", "document_type": "form"},
     )
     assert r.status_code == 200
     body = r.json()
@@ -104,7 +104,7 @@ def test_invalid_threshold_is_422(client: TestClient) -> None:
 
 
 def test_override_thresholds_via_query(client: TestClient) -> None:
-    _seed([("gpa", "transcript", 3, 2)])  # 3 samples, rate 0.667
+    _seed([("assessed_value", "invoice", 3, 2)])  # 3 samples, rate 0.667
     # default min_samples=5 -> unproven
     assert client.get("/api/v1/reliability").json()[0]["basis"] == "unproven"
     # override min_samples=3, threshold=0.5 -> proven & high_change_rate
