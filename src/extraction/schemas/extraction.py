@@ -6,16 +6,26 @@ from typing import Literal, get_args
 from pydantic import BaseModel
 
 # Canonical document-type vocabulary — the single source of truth shared by the
-# extraction tool (pipeline) and the reliability model (Feature 2b). `transcript`
-# was missing originally, so transcripts were misclassified as `diploma` (#13).
+# extraction tool (pipeline) and the reliability model (Feature 2b). Deliberately
+# broad: the pipeline is domain-agnostic and demos across common business and
+# records documents. (`transcript` vs `diploma` are kept distinct — see #13, where
+# transcripts were being misclassified as diplomas.)
 DocumentType = Literal[
-    "transcript",
-    "diploma",
-    "passport",
+    "invoice",
+    "contract",
+    "receipt",
+    "form",
+    "letter",
+    "report",
+    "lab_report",
+    "resume",
     "scientific_paper",
     "legal_document",
     "proposal",
     "handwritten_note",
+    "transcript",
+    "diploma",
+    "passport",
     "unknown",
 ]
 DOCUMENT_TYPES: tuple[DocumentType, ...] = get_args(DocumentType)

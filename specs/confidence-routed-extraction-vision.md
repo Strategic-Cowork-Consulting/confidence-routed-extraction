@@ -14,7 +14,7 @@ AI-assisted document field mapping produces errors in 2–20% of fields per docu
 
 ## Who Feels It
 
-Specialist reviewers — roles like paralegals — with approximately 2 years of domain training. They replaced a larger team through AI automation and now work at higher volume. Their value is in catching what the AI gets wrong, but without knowing which fields to watch for, they review everything equally whether it needs it or not.
+Specialist reviewers — domain experts with a couple of years of training — who validate AI-drafted extractions at high volume. Their value is in catching what the AI gets wrong, but without knowing which fields to watch for, they review everything equally whether it needs it or not.
 
 ---
 

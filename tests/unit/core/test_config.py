@@ -19,7 +19,7 @@ def test_no_persona_no_refs_returns_none() -> None:
 
 
 def test_persona_only_returned_verbatim() -> None:
-    assert compose_persona("You are a paralegal.", []) == "You are a paralegal."
+    assert compose_persona("You are a document analyst.", []) == "You are a document analyst."
 
 
 def test_refs_without_persona_use_default_base() -> None:
