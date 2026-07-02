@@ -127,7 +127,7 @@ ruff check src/ tests/
 
 ## How it was built
 
-Built as the capstone for an agentic-AI engineering course, using a spec-first workflow: every feature was specified in a PRD, tracked as a GitHub issue, and shipped through a reviewed pull request. The full set of specs and design-decision records lives in [`/specs`](specs/) — they document the reasoning behind each decision, not just the final code.
+Built as the capstone for **Agentic AI for Claude Builders**, using a spec-first workflow: every feature was specified in a PRD, tracked as a GitHub issue, and shipped through a reviewed pull request. The full set of specs and design-decision records lives in [`/specs`](specs/) — they document the reasoning behind each decision, not just the final code.
 
 ## Scope
 
