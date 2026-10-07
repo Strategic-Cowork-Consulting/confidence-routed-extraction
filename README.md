@@ -64,10 +64,10 @@ A few non-obvious choices shaped this system. The reasoning for each is captured
 
 ## Quickstart
 
-Requires Python 3.12 and an Anthropic API key.
+Requires Python 3.11+ and an Anthropic API key.
 
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env            # then put your real ANTHROPIC_API_KEY in .env
 PYTHONPATH=src uvicorn extraction.api.main:app --reload
@@ -116,7 +116,7 @@ Routing is tunable (defaults shown):
 
 ## Tech & quality
 
-Python 3.12 · FastAPI · Pydantic v2 · SQLite · Anthropic Claude.
+Python 3.11+ · FastAPI · Pydantic v2 · SQLite · Anthropic Claude.
 Tested with pytest (75 tests), type-checked with pyright (strict), linted with ruff.
 
 ```bash

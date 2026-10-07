@@ -88,7 +88,10 @@ def test_unknown_document_type_still_captured(client: TestClient) -> None:
     # 'exemptions' has no source document (not found in any doc) -> document_type "unknown"
     _seed_draft(
         "doc-2",
-        {"owner_name": _fv("Acme Holdings LLC", "p.pdf"), "exemptions": _fv(None, "", not_found=True)},
+        {
+            "owner_name": _fv("Acme Holdings LLC", "p.pdf"),
+            "exemptions": _fv(None, "", not_found=True),
+        },
         [DocumentResult(filename="p.pdf", document_type="report")],
     )
     _approve(client, "doc-2", {"owner_name": "Acme Holdings LLC", "exemptions": "Now filled in"})
