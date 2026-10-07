@@ -63,6 +63,8 @@ confidence-routed-extraction/
 
 ## Development Setup
 
+Requires Python 3.11+ (`requires-python` in `pyproject.toml`).
+
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
