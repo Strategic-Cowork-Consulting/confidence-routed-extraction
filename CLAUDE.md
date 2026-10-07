@@ -64,7 +64,7 @@ confidence-routed-extraction/
 ## Development Setup
 
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env          # fill in ANTHROPIC_API_KEY
 git config core.hooksPath .githooks   # enable the secret-scanning pre-commit hook (once per clone)

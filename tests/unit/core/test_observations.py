@@ -44,7 +44,10 @@ def test_document_type_resolved_from_source() -> None:
             DocumentResult(filename="d.pdf", document_type="receipt"),
         ],
     )
-    obs = {o.field_name: o for o in build_observations(draft, {"assessed_value": False, "tax_class": False}, _AT)}
+    obs = {
+        o.field_name: o
+        for o in build_observations(draft, {"assessed_value": False, "tax_class": False}, _AT)
+    }
     assert obs["assessed_value"].document_type == "invoice"
     assert obs["tax_class"].document_type == "receipt"
 

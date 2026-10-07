@@ -87,7 +87,10 @@ def test_draft_uses_persona_and_reference_docs(
     )
 
     client.put("/api/v1/config/persona", json={"persona": "You are a tax assessor."})
-    client.post("/api/v1/reference-docs", json={"name": "Guide", "content": "Assessed values are in USD."})
+    client.post(
+        "/api/v1/reference-docs",
+        json={"name": "Guide", "content": "Assessed values are in USD."},
+    )
 
     resp = client.post(
         "/api/v1/extraction/draft",
